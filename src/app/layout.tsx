@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 
 const geistSans = Geist({
@@ -32,7 +32,6 @@ export default function RootLayout({
         <SidebarProvider>
           <AppSidebar />
           <main className="flex-1 flex flex-col overflow-hidden">
-            <SidebarTrigger />
             {children}
           </main>
         </SidebarProvider>

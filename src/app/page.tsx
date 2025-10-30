@@ -6,11 +6,12 @@ import { TableSelector } from "@/components/table-selector"
 export default async function Home({
   searchParams,
 }: {
-  searchParams: { table?: string }
+  searchParams: Promise<{ table?: string }>
 }) {
+  const params = await searchParams
   let error = null
   let table = []
-  const tableName = searchParams.table || 'finca'
+  const tableName = params.table || 'finca'
 
   try {
     table = await getTable(tableName)
