@@ -107,9 +107,9 @@ export default function MapaPage() {
                     />
                 </div>
             </header>
-            <div className="h-full overflow-hidden p-4">
+            <div className="h-[calc(100vh-57px)] overflow-hidden p-4">
                 {loading ? (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4 h-full">
                         <FincaBloqueCardSkeleton />
                         <FincaBloqueCardSkeleton />
                     </div>
@@ -118,7 +118,7 @@ export default function MapaPage() {
                         {filter ? 'No se encontraron bloques con esa variedad' : 'No hay fincas disponibles'}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-2 gap-4 overflow-auto">
+                    <div className="grid grid-cols-2 gap-4 h-full">
                         {filteredFincasData.map(({ finca, bloques, bloqueVariedades }) => (
                             <FincaBloqueCard
                                 key={finca.id_finca}

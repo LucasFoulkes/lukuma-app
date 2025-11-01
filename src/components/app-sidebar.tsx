@@ -14,6 +14,11 @@ import {
 
 const items = [
     {
+        title: "Tablero",
+        url: "/",
+        icon: Home,
+    },
+    {
         title: "Mapa",
         url: "/mapa",
         icon: Map,
@@ -48,7 +53,7 @@ export function AppSidebar() {
                         <SidebarMenu>
                             <SidebarMenuItem>
                                 <SidebarMenuButton asChild>
-                                    <a href="/">
+                                    <a href="/tables">
                                         <Database />
                                         <span>Base de Datos</span>
                                     </a>

@@ -3,13 +3,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { COLORS, getLabelColor } from '@/lib/colors'
 import { MapSettings, DEFAULT_MAP_SETTINGS } from '@/lib/map-settings'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
+import { Settings } from 'lucide-react'
 
 interface BloqueMapProps {
     bloqueId: number
     bloqueName: string
     fincaName?: string
     camas?: any[]
+    grupos?: any[]
     settings?: MapSettings
+    disableInteraction?: boolean
 }
 
 export function BloqueMap({ 
@@ -17,15 +25,115 @@ export function BloqueMap({
     bloqueName, 
     fincaName, 
     camas = [],
-    settings = DEFAULT_MAP_SETTINGS
+    grupos = [],
+    settings = DEFAULT_MAP_SETTINGS,
+    disableInteraction = false
 }: BloqueMapProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const p5Instance = useRef<any>(null)
     const [selectedCamas, setSelectedCamas] = useState<Set<string>>(new Set())
     const selectedCamasRef = useRef<Set<string>>(new Set())
+    const [showSelectionDialog, setShowSelectionDialog] = useState(false)
+    const showSelectionDialogRef = useRef(false)
+    const disableInteractionRef = useRef(disableInteraction)
+    const [selectionDialogCamas, setSelectionDialogCamas] = useState<any[]>([])
+    const [estados, setEstados] = useState<{ id: number; codigo: string }[]>([])
+    const [tiposPlantas, setTiposPlantas] = useState<any[]>([])
+    const [patrones, setPatrones] = useState<any[]>([])
+    const [variedades, setVariedades] = useState<any[]>([])
+    
+    // Keep disableInteraction ref in sync
+    useEffect(() => {
+        disableInteractionRef.current = disableInteraction
+    }, [disableInteraction])
+    useEffect(() => {
+        const fetchEstados = async () => {
+            try {
+                const response = await fetch('/api/estados')
+                if (response.ok) {
+                    const data = await response.json()
+                    console.log('Fetched estados:', data)
+                    setEstados(data)
+                } else {
+                    console.error('Failed to fetch estados:', response.status)
+                }
+            } catch (error) {
+                console.error('Error fetching estados:', error)
+            }
+        }
+        fetchEstados()
+    }, [])
+    
+    // Fetch tipos de planta
+    useEffect(() => {
+        const fetchTiposPlantas = async () => {
+            try {
+                const response = await fetch('/api/tipos-plantas')
+                if (response.ok) {
+                    const data = await response.json()
+                    console.log('Fetched tipos plantas:', data)
+                    setTiposPlantas(data)
+                }
+            } catch (error) {
+                console.error('Error fetching tipos plantas:', error)
+            }
+        }
+        fetchTiposPlantas()
+    }, [])
+    
+    // Fetch patrones
+    useEffect(() => {
+        const fetchPatrones = async () => {
+            try {
+                const response = await fetch('/api/patrones')
+                if (response.ok) {
+                    const data = await response.json()
+                    console.log('Fetched patrones:', data)
+                    setPatrones(data)
+                }
+            } catch (error) {
+                console.error('Error fetching patrones:', error)
+            }
+        }
+        fetchPatrones()
+    }, [])
+    
+    // Fetch variedades
+    useEffect(() => {
+        const fetchVariedades = async () => {
+            try {
+                const response = await fetch('/api/variedades')
+                if (response.ok) {
+                    const data = await response.json()
+                    console.log('Fetched variedades:', data)
+                    setVariedades(data)
+                }
+            } catch (error) {
+                console.error('Error fetching variedades:', error)
+            }
+        }
+        fetchVariedades()
+    }, [])
+    const [editingGroupKey, setEditingGroupKey] = useState<string | null>(null)
+    const [editFormData, setEditFormData] = useState<any>({})
+    const [isSaving, setIsSaving] = useState(false)
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+    const [pendingSave, setPendingSave] = useState<{ groupKey: string, camas: any[] } | null>(null)
+    
+    // Keep ref in sync with state
+    useEffect(() => {
+        showSelectionDialogRef.current = showSelectionDialog
+    }, [showSelectionDialog])
+    
+    // Debug logging
+    useEffect(() => {
+        console.log('showSelectionDialog changed:', showSelectionDialog, 'camas:', selectionDialogCamas.length)
+    }, [showSelectionDialog, selectionDialogCamas])
+    
     const [hoveredCama, setHoveredCama] = useState<{
         nombre: string
         variedad: string
+        grupoId: number | null
         grupoNombre: string
         grupoEstado: string
         grupoFechaSiembra: string | null
@@ -36,6 +144,7 @@ export function BloqueMap({
     const hoveredCamaRef = useRef<{
         nombre: string
         variedad: string
+        grupoId: number | null
         grupoNombre: string
         grupoEstado: string
         grupoFechaSiembra: string | null
@@ -75,6 +184,157 @@ export function BloqueMap({
     useEffect(() => {
         hoveredCamaRef.current = hoveredCama
     }, [hoveredCama])
+
+    // Show confirmation dialog
+    const handleSaveClick = (groupKey: string, camasInGroup: any[]) => {
+        setPendingSave({ groupKey, camas: camasInGroup })
+        setShowConfirmDialog(true)
+    }
+
+    // Actual save handler (called after confirmation)
+    const handleConfirmSave = async () => {
+        if (!pendingSave) return
+        
+        setIsSaving(true)
+        setShowConfirmDialog(false)
+        
+        try {
+            const { groupKey, camas: camasInGroup } = pendingSave
+            const camaNames = camasInGroup.map(c => c.nombre)
+            const firstCama = camasInGroup[0]
+            const originalGrupo = grupos.find(g => g.id === firstCama.grupoId)
+
+            // Case 1: User changed "Cambiar a Grupo" to a different existing grupo
+            if (editFormData.grupoId && editFormData.grupoId !== firstCama.grupoId) {
+                // Verify the grupo exists
+                const targetGrupo = grupos.find(g => g.id_grupo === editFormData.grupoId)
+                if (!targetGrupo) {
+                    throw new Error(`Grupo ${editFormData.grupoId} no existe en este bloque`)
+                }
+
+                console.log('Case 1: Moving camas to grupo', { 
+                    bloqueId, 
+                    camaNames, 
+                    newGrupoId: editFormData.grupoId,
+                    oldGrupoId: firstCama.grupoId,
+                    targetGrupoExists: !!targetGrupo,
+                    targetGrupoName: targetGrupo.nombre
+                })
+                const response = await fetch('/api/camas/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bloqueId,
+                        camaNames,
+                        updates: { id_grupo: editFormData.grupoId }
+                    })
+                })
+
+                if (!response.ok) {
+                    const errorData = await response.json()
+                    console.error('API error response:', errorData)
+                    throw new Error(`Failed to move camas to grupo: ${errorData.error || response.statusText}`)
+                }
+                
+                const result = await response.json()
+                console.log('Moved camas to grupo:', result)
+                
+                // Refresh the page data
+                window.location.reload()
+                return
+            }
+
+            // Check if grupo properties changed
+            const grupoPropsChanged = 
+                editFormData.variety !== firstCama.variety ||
+                editFormData.grupoEstado !== firstCama.grupoEstado ||
+                editFormData.grupoTipoPlanta !== firstCama.grupoTipoPlanta ||
+                editFormData.grupoPatron !== firstCama.grupoPatron ||
+                editFormData.grupoFechaSiembra !== firstCama.grupoFechaSiembra
+
+            console.log('Checking grupo props changed:', {
+                grupoPropsChanged,
+                variety: { old: firstCama.variety, new: editFormData.variety },
+                estado: { old: firstCama.grupoEstado, new: editFormData.grupoEstado },
+                tipoPlanta: { old: firstCama.grupoTipoPlanta, new: editFormData.grupoTipoPlanta },
+                patron: { old: firstCama.grupoPatron, new: editFormData.grupoPatron }
+            })
+
+            // Case 2: Grupo properties changed - create new grupo and assign camas
+            if (grupoPropsChanged) {
+                console.log('Case 2: Creating new grupo')
+                const varietyId = variedades.find(v => (v.nombre || v.codigo) === editFormData.variety)?.id
+
+                const grupoData = {
+                    id_variedad: varietyId,
+                    estado: editFormData.grupoEstado,
+                    tipo_planta: editFormData.grupoTipoPlanta,
+                    patron: editFormData.grupoPatron,
+                    fecha_siembra: editFormData.grupoFechaSiembra
+                }
+                console.log('Creating grupo with data:', grupoData)
+
+                const response = await fetch('/api/grupos/create-and-assign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bloqueId,
+                        camaNames,
+                        grupoData
+                    })
+                })
+
+                if (!response.ok) {
+                    const errorData = await response.json()
+                    console.error('API error response:', errorData)
+                    throw new Error(`Failed to create grupo: ${errorData.error || response.statusText}`)
+                }
+                
+                const result = await response.json()
+                console.log('Created new grupo and assigned camas:', result)
+            }
+
+            // Case 3: Only individual cama properties changed (largo)
+            if (editFormData.length && editFormData.length !== firstCama.length) {
+                console.log('Case 3: Updating cama length')
+                const response = await fetch('/api/camas/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bloqueId,
+                        camaNames,
+                        updates: { largo_metros: editFormData.length }
+                    })
+                })
+
+                if (!response.ok) {
+                    const errorData = await response.json()
+                    console.error('API error response:', errorData)
+                    throw new Error(`Failed to update cama properties: ${errorData.error || response.statusText}`)
+                }
+                
+                const result = await response.json()
+                console.log('Updated cama properties:', result)
+            }
+
+            console.log('All updates completed successfully')
+            
+            // Success - close edit mode and refresh
+            setEditingGroupKey(null)
+            setEditFormData({})
+            setPendingSave(null)
+            window.location.reload()
+
+        } catch (error) {
+            console.error('Error saving changes (full details):', error)
+            console.error('Error message:', error instanceof Error ? error.message : String(error))
+            console.error('editFormData:', editFormData)
+            console.error('pendingSave:', pendingSave)
+            alert(`Error al guardar los cambios: ${error instanceof Error ? error.message : String(error)}`)
+        } finally {
+            setIsSaving(false)
+        }
+    }
 
     const { 
         showLabels, 
@@ -177,6 +437,7 @@ export function BloqueMap({
                 grupoKey,
                 grupoMaxLength: grupoMaxLengths.get(sideKey) || length,
                 grupoLabel: isProductivo ? variety : `${cama.grupo?.nombre || ''} | ${variety} | ${cama.grupo?.estado || ''}`,
+                grupoId: cama.grupo?.id_grupo || null,
                 grupoNombre: cama.grupo?.nombre || '',
                 grupoEstado: cama.grupo?.estado || '',
                 grupoFechaSiembra: cama.grupo?.fecha_siembra || null,
@@ -207,6 +468,7 @@ export function BloqueMap({
                     nombre: string, 
                     variety: string, 
                     grupoLabel: string,
+                    grupoId: number | null,
                     grupoNombre: string,
                     grupoEstado: string,
                     grupoFechaSiembra: string | null,
@@ -291,6 +553,7 @@ export function BloqueMap({
                             nombre: bed.nombre,
                             variety: bed.variety,
                             grupoLabel: bed.grupoLabel,
+                            grupoId: bed.grupoId,
                             grupoNombre: bed.grupoNombre,
                             grupoEstado: bed.grupoEstado,
                             grupoFechaSiembra: bed.grupoFechaSiembra,
@@ -555,13 +818,14 @@ export function BloqueMap({
                     }
                     
                     // Update hover detection after bedBounds is populated
-                    if (p.mouseX >= 0 && p.mouseX <= p.width && p.mouseY >= 0 && p.mouseY <= p.height) {
+                    if (!showSelectionDialogRef.current && !disableInteractionRef.current && p.mouseX >= 0 && p.mouseX <= p.width && p.mouseY >= 0 && p.mouseY <= p.height) {
                         const originalX = (p.mouseX / transformScale) - transformOffsetX
                         const originalY = (p.mouseY / transformScale) - transformOffsetY
                         
                         let foundBed: {
                             nombre: string
                             variedad: string
+                            grupoId: number | null
                             grupoNombre: string
                             grupoEstado: string
                             grupoFechaSiembra: string | null
@@ -575,6 +839,7 @@ export function BloqueMap({
                                 foundBed = {
                                     nombre: bed.nombre,
                                     variedad: bed.variety,
+                                    grupoId: bed.grupoId,
                                     grupoNombre: bed.grupoNombre,
                                     grupoEstado: bed.grupoEstado,
                                     grupoFechaSiembra: bed.grupoFechaSiembra,
@@ -605,6 +870,11 @@ export function BloqueMap({
                 }
                 
                 p.mousePressed = () => {
+                    // Don't process mouse events if dialog is open
+                    if (showSelectionDialogRef.current || disableInteractionRef.current) {
+                        return
+                    }
+                    
                     // Check if click is within canvas
                     if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) {
                         return
@@ -638,6 +908,11 @@ export function BloqueMap({
                 }
                 
                 p.mouseDragged = () => {
+                    // Don't process mouse events if dialog is open
+                    if (showSelectionDialogRef.current || disableInteractionRef.current) {
+                        return
+                    }
+                    
                     // Check if drag is within canvas
                     if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) {
                         return
@@ -682,8 +957,27 @@ export function BloqueMap({
                 }
                 
                 p.mouseReleased = () => {
-                    // Clear selection when mouse is released
-                    setSelectedCamas(new Set())
+                    // Don't process mouse events if dialog is open
+                    if (showSelectionDialogRef.current || disableInteractionRef.current) {
+                        return
+                    }
+                    
+                    console.log('mouseReleased called, selected count:', selectedCamasRef.current.size)
+                    // Show dialog if we have selected camas
+                    if (selectedCamasRef.current.size > 0) {
+                        const selectedCamaNames = Array.from(selectedCamasRef.current)
+                        const selectedCamaObjects = beds.filter(bed => 
+                            selectedCamaNames.includes(bed.nombre)
+                        )
+                        console.log('Selected camas:', selectedCamaNames, 'Objects:', selectedCamaObjects)
+                        setSelectionDialogCamas(selectedCamaObjects)
+                        setShowSelectionDialog(true)
+                    }
+                    
+                    // Clear selection after capturing it
+                    setTimeout(() => {
+                        setSelectedCamas(new Set())
+                    }, 0)
                     // Reset drag tracking
                     lastDragX = -1
                     lastDragY = -1
@@ -706,7 +1000,12 @@ export function BloqueMap({
 
     return (
         <div className="relative w-full h-full">
-            <div ref={containerRef} className="w-full h-full flex items-center justify-center" />
+            <div 
+                ref={containerRef} 
+                className="w-full h-full flex items-center justify-center"
+                style={{ pointerEvents: (showSelectionDialog || disableInteraction) ? 'none' : 'auto' }}
+            />
+            
             {hoveredCama && mousePos && (() => {
                 // Smart positioning: show above if more space above, below if more space below
                 const spaceAbove = mousePos.y
@@ -743,6 +1042,356 @@ export function BloqueMap({
                     </div>
                 )
             })()}
+            
+            <Dialog open={showSelectionDialog} onOpenChange={setShowSelectionDialog}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Camas Seleccionadas ({selectionDialogCamas.length})
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        {(() => {
+                            // Group camas by all grupo variables
+                            const groups = new Map<string, typeof selectionDialogCamas>()
+                            
+                            selectionDialogCamas.forEach(cama => {
+                                const groupKey = JSON.stringify({
+                                    grupoId: cama.grupoId,
+                                    variety: cama.variety,
+                                    grupoNombre: cama.grupoNombre,
+                                    grupoEstado: cama.grupoEstado,
+                                    grupoFechaSiembra: cama.grupoFechaSiembra,
+                                    grupoTipoPlanta: cama.grupoTipoPlanta,
+                                    grupoPatron: cama.grupoPatron,
+                                    length: cama.length,
+                                    varietyColor: cama.varietyColor
+                                })
+                                
+                                if (!groups.has(groupKey)) {
+                                    groups.set(groupKey, [])
+                                }
+                                groups.get(groupKey)!.push(cama)
+                            })
+                            
+                            return Array.from(groups.entries()).map(([groupKey, camas]) => {
+                                const firstCama = camas[0]
+                                const isEditing = editingGroupKey === groupKey
+                                
+                                // Use all grupos from bloque for the select dropdown
+                                const allGrupos = grupos
+                                    .filter(g => g.id_grupo)
+                                    .map(g => ({
+                                        id: g.id_grupo,  // This is the actual grupo_cama.id (primary key)
+                                        nombre: g.nombre,
+                                        variety: g.variedad?.nombre || 'Sin variedad',
+                                        estado: g.estado || '',
+                                        camasCount: g.camasCount || 0,
+                                        colorHex: g.colorHex || '#999999'
+                                    }))
+                                    .sort((a, b) => (a.id || 0) - (b.id || 0))
+                                
+                                return (
+                                    <div key={groupKey} className="border rounded-lg p-4 relative">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute top-2 right-2 h-8 w-8"
+                                            onClick={() => {
+                                                if (isEditing) {
+                                                    setEditingGroupKey(null)
+                                                    setEditFormData({})
+                                                } else {
+                                                    setEditingGroupKey(groupKey)
+                                                    setEditFormData({
+                                                        variety: firstCama.variety,
+                                                        grupoNombre: firstCama.grupoNombre,
+                                                        grupoEstado: firstCama.grupoEstado,
+                                                        grupoFechaSiembra: firstCama.grupoFechaSiembra,
+                                                        grupoTipoPlanta: firstCama.grupoTipoPlanta,
+                                                        grupoPatron: firstCama.grupoPatron,
+                                                        length: firstCama.length
+                                                    })
+                                                }
+                                            }}
+                                        >
+                                            <Settings className="h-4 w-4" />
+                                        </Button>
+                                        <div className="flex gap-3 items-start mb-3">
+                                            <div 
+                                                className="w-16 h-16 rounded flex-shrink-0"
+                                                style={{ backgroundColor: firstCama.varietyColor }}
+                                            />
+                                            <div className="flex-1 text-sm pr-8">
+                                                {isEditing ? (
+                                                    <div className="space-y-3">
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-medium text-muted-foreground">
+                                                                Cambiar a Grupo
+                                                            </label>
+                                                            <Select
+                                                                value={editFormData.grupoId?.toString() || firstCama.grupoId?.toString() || ''}
+                                                                onValueChange={(value) => {
+                                                                    const selectedGrupo = allGrupos.find(g => g.id?.toString() === value)
+                                                                    if (selectedGrupo) {
+                                                                        setEditFormData({
+                                                                            ...editFormData,
+                                                                            grupoId: selectedGrupo.id,
+                                                                            grupoNombre: selectedGrupo.nombre,
+                                                                            grupoEstado: selectedGrupo.estado,
+                                                                            variety: selectedGrupo.variety
+                                                                        })
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <SelectTrigger className="h-8 w-full">
+                                                                    <SelectValue placeholder="Seleccionar grupo" />
+                                                                </SelectTrigger>
+                                                                <SelectContent className="w-full">
+                                                                    {allGrupos.map((grupo) => (
+                                                                        <SelectItem 
+                                                                            key={grupo.id} 
+                                                                            value={grupo.id?.toString() || ''}
+                                                                        >
+                                                                            <div className="flex items-center gap-2">
+                                                                                <div 
+                                                                                    className="w-8 h-8 rounded flex-shrink-0"
+                                                                                    style={{ backgroundColor: grupo.colorHex }}
+                                                                                />
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="font-medium">
+                                                                                        ID {grupo.id} - {grupo.nombre} ({grupo.camasCount} camas)
+                                                                                    </span>
+                                                                                    <span className="text-xs text-muted-foreground">
+                                                                                        {grupo.variety} • {grupo.estado}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <label className="text-xs font-medium text-muted-foreground min-w-[80px]">
+                                                                Variedad
+                                                            </label>
+                                                            <Combobox
+                                                                value={editFormData.variety || ''}
+                                                                onValueChange={(value) => setEditFormData({ ...editFormData, variety: value })}
+                                                                options={variedades
+                                                                    .filter(v => (v.nombre || v.codigo) && (v.nombre || v.codigo).trim() !== '')
+                                                                    .map(v => ({
+                                                                        value: v.nombre || v.codigo,
+                                                                        label: v.nombre || v.codigo
+                                                                    }))}
+                                                                placeholder="Seleccionar variedad"
+                                                                searchPlaceholder="Buscar variedad..."
+                                                                emptyText="No se encontró variedad"
+                                                                className="h-8 flex-1"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <label className="text-xs font-medium text-muted-foreground min-w-[80px]">
+                                                                Estado
+                                                            </label>
+                                                            <Select
+                                                                value={editFormData.grupoEstado || ''}
+                                                                onValueChange={(value) => {
+                                                                    console.log('Estado changed to:', value)
+                                                                    setEditFormData({ ...editFormData, grupoEstado: value })
+                                                                }}
+                                                            >
+                                                                <SelectTrigger className="h-8 flex-1">
+                                                                    <SelectValue placeholder="Seleccionar estado" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {estados.length > 0 ? (
+                                                                        estados
+                                                                            .filter(estado => estado.codigo && estado.codigo.trim() !== '')
+                                                                            .map((estado, index) => {
+                                                                                console.log('Rendering estado:', estado)
+                                                                                return (
+                                                                                    <SelectItem 
+                                                                                        key={estado.codigo || `estado-${index}`} 
+                                                                                        value={estado.codigo}
+                                                                                    >
+                                                                                        {estado.codigo}
+                                                                                    </SelectItem>
+                                                                                )
+                                                                            })
+                                                                    ) : (
+                                                                        <div className="p-2 text-sm text-muted-foreground">
+                                                                            Cargando estados...
+                                                                        </div>
+                                                                    )}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <label className="text-xs font-medium text-muted-foreground min-w-[80px]">
+                                                                Largo
+                                                            </label>
+                                                            <Input
+                                                                type="number"
+                                                                value={editFormData.length || ''}
+                                                                onChange={(e) => setEditFormData({ ...editFormData, length: parseFloat(e.target.value) })}
+                                                                placeholder="Largo (m)"
+                                                                className="h-8 flex-1"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <label className="text-xs font-medium text-muted-foreground min-w-[80px]">
+                                                                Fecha siembra
+                                                            </label>
+                                                            <Input
+                                                                type="date"
+                                                                value={editFormData.grupoFechaSiembra ? new Date(editFormData.grupoFechaSiembra).toISOString().split('T')[0] : ''}
+                                                                onChange={(e) => setEditFormData({ ...editFormData, grupoFechaSiembra: e.target.value })}
+                                                                placeholder="Fecha de siembra"
+                                                                className="h-8 flex-1"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <label className="text-xs font-medium text-muted-foreground min-w-[80px]">
+                                                                Tipo planta
+                                                            </label>
+                                                            <Combobox
+                                                                value={editFormData.grupoTipoPlanta || ''}
+                                                                onValueChange={(value) => setEditFormData({ ...editFormData, grupoTipoPlanta: value })}
+                                                                options={tiposPlantas
+                                                                    .filter(t => (t.nombre || t.codigo) && (t.nombre || t.codigo).trim() !== '')
+                                                                    .map(t => ({
+                                                                        value: t.nombre || t.codigo,
+                                                                        label: t.nombre || t.codigo
+                                                                    }))}
+                                                                placeholder="Seleccionar tipo"
+                                                                searchPlaceholder="Buscar tipo..."
+                                                                emptyText="No se encontró tipo"
+                                                                className="h-8 flex-1"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <label className="text-xs font-medium text-muted-foreground min-w-[80px]">
+                                                                Patrón
+                                                            </label>
+                                                            <Combobox
+                                                                value={editFormData.grupoPatron || ''}
+                                                                onValueChange={(value) => setEditFormData({ ...editFormData, grupoPatron: value })}
+                                                                options={patrones
+                                                                    .filter(p => (p.nombre || p.codigo) && (p.nombre || p.codigo).trim() !== '')
+                                                                    .map(p => ({
+                                                                        value: p.nombre || p.codigo,
+                                                                        label: p.nombre || p.codigo
+                                                                    }))}
+                                                                placeholder="Seleccionar patrón"
+                                                                searchPlaceholder="Buscar patrón..."
+                                                                emptyText="No se encontró patrón"
+                                                                className="h-8 flex-1"
+                                                            />
+                                                        </div>
+                                                        <div className="flex gap-2 mt-4">
+                                                            <Button
+                                                                onClick={() => handleSaveClick(groupKey, camas)}
+                                                                disabled={isSaving}
+                                                                size="sm"
+                                                                className="flex-1"
+                                                            >
+                                                                {isSaving ? 'Guardando...' : 'Guardar'}
+                                                            </Button>
+                                                            <Button
+                                                                onClick={() => {
+                                                                    setEditingGroupKey(null)
+                                                                    setEditFormData({})
+                                                                }}
+                                                                disabled={isSaving}
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="flex-1"
+                                                            >
+                                                                Cancelar
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div className="font-semibold text-base mb-1">
+                                                            <span className="font-medium">{firstCama.variety}</span> • {firstCama.grupoEstado}
+                                                        </div>
+                                                        <div className="text-muted-foreground space-y-0.5">
+                                                            {firstCama.grupoId && (
+                                                                <div className="text-xs font-mono">Grupo ID: {firstCama.grupoId}</div>
+                                                            )}
+                                                            <div>{firstCama.grupoNombre}</div>
+                                                            <div>Largo: {firstCama.length}m</div>
+                                                            {firstCama.grupoFechaSiembra && (
+                                                                <div>Siembra: {new Date(firstCama.grupoFechaSiembra).toLocaleDateString()}</div>
+                                                            )}
+                                                            {firstCama.grupoTipoPlanta && (
+                                                                <div>Tipo: {firstCama.grupoTipoPlanta}</div>
+                                                            )}
+                                                            {firstCama.grupoPatron && (
+                                                                <div>Patrón: {firstCama.grupoPatron}</div>
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5 pl-[76px]">
+                                            {camas.map(cama => (
+                                                <span 
+                                                    key={cama.nombre}
+                                                    className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-secondary"
+                                                >
+                                                    {cama.nombre}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )
+                            })
+                        })()}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Confirmation Dialog */}
+            <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Confirmar cambios</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            ¿Estás seguro de que quieres guardar estos cambios? 
+                            {pendingSave && (
+                                <span className="block mt-2">
+                                    Se actualizarán <strong>{pendingSave.camas.length}</strong> cama(s).
+                                </span>
+                            )}
+                        </p>
+                        <div className="flex gap-2 justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setShowConfirmDialog(false)
+                                    setPendingSave(null)
+                                }}
+                                disabled={isSaving}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleConfirmSave}
+                                disabled={isSaving}
+                            >
+                                {isSaving ? 'Guardando...' : 'Confirmar'}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

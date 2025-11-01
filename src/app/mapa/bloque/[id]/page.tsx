@@ -2,7 +2,7 @@ import { getRowById, getRowsByColumn, getTable } from "@/services/db"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BloqueMapWithSettings } from "@/components/bloque-map-with-settings"
 import { COLORS } from "@/lib/colors"
-import { PageHeader } from "@/components/page-header"
+import { BloquePageClient } from "@/components/bloque-page-client"
 
 export default async function BloquePage({
     params,
@@ -45,7 +45,8 @@ export default async function BloquePage({
             // Fetch camas for each grupo and link with variedad
             camasWithData = (await Promise.all(
                 grupos.map(async (grupo: any) => {
-                    const camas = await getRowsByColumn('cama', 'id_grupo', grupo.id_grupo)
+                    const allCamas = await getRowsByColumn('cama', 'id_grupo', grupo.id_grupo)
+                    const camas = allCamas.filter((c: any) => c.eliminado_en === null)
                     const variedad = variedadMap.get(grupo.id_variedad)
 
                     return camas.map((cama: any) => ({
@@ -123,25 +124,60 @@ export default async function BloquePage({
     }
 
     return (
-        <>
-            <PageHeader 
-                breadcrumbs={[
-                    { label: 'Mapa', href: '/mapa' },
-                    { label: finca?.nombre || 'Finca', href: '/mapa' },
-                    { label: bloque.nombre || `Bloque ${bloque.id_bloque}` }
-                ]}
-            />
-            <div className="flex-1 flex gap-4 p-4 overflow-hidden">
-                {/* Map Card */}
-                <Card className="flex-1 overflow-hidden flex flex-col min-h-0 relative p-2">
-                <BloqueMapWithSettings
-                    bloqueId={bloque.id_bloque}
-                    bloqueName={bloque.nombre}
-                    fincaName={finca?.nombre}
-                    camas={camasWithData}
-                />
-            </Card>
-
+        <BloquePageClient
+            bloque={bloque}
+            finca={finca}
+            camasWithData={camasWithData}
+            gruposForMap={gruposList.map((g, idx) => {
+                const estado = g.grupo.estado?.toLowerCase()
+                let colorHex = estado === 'vegetativo' 
+                    ? '#555555' 
+                    : (COLORS[g.variedad?.color?.toLowerCase()] || '#999999')
+                
+                // Apply shade variation if multiple grupos share same color
+                const colorName = g.variedad?.color?.toLowerCase() || 'default'
+                const gruposWithSameColor = gruposList.filter(item => {
+                    const gEstado = item.grupo.estado?.toLowerCase()
+                    const gColor = item.variedad?.color?.toLowerCase() || 'default'
+                    return gEstado !== 'vegetativo' && gColor === colorName
+                })
+                
+                if (gruposWithSameColor.length > 1 && estado !== 'vegetativo') {
+                    const grupoIndexInColor = gruposWithSameColor.findIndex(item => 
+                        item.grupo.id_grupo === g.grupo.id_grupo
+                    )
+                    
+                    // Convert hex to RGB and blend
+                    const hex = colorHex.replace('#', '')
+                    const r = parseInt(hex.substr(0, 2), 16)
+                    const gVal = parseInt(hex.substr(2, 2), 16)
+                    const b = parseInt(hex.substr(4, 2), 16)
+                    
+                    let newR, newG, newB
+                    if (grupoIndexInColor % 2 === 0) {
+                        // Even: blend 3% with white (lighter)
+                        newR = Math.round(r * 0.97 + 255 * 0.03)
+                        newG = Math.round(gVal * 0.97 + 255 * 0.03)
+                        newB = Math.round(b * 0.97 + 255 * 0.03)
+                    } else {
+                        // Odd: blend 3% with black (darker)
+                        newR = Math.round(r * 0.97)
+                        newG = Math.round(gVal * 0.97)
+                        newB = Math.round(b * 0.97)
+                    }
+                    
+                    colorHex = `rgb(${newR}, ${newG}, ${newB})`
+                }
+                
+                return { 
+                    ...g.grupo, 
+                    variedad: g.variedad,
+                    camasCount: g.camas.length,
+                    colorHex
+                }
+            })}
+            gruposList={gruposList}
+        >
             {/* Grupos List */}
             <div className="w-80 overflow-hidden flex flex-col">
                 <div className="flex-1 overflow-y-auto space-y-3">
@@ -219,7 +255,6 @@ export default async function BloquePage({
                     })}
                 </div>
             </div>
-            </div>
-        </>
+        </BloquePageClient>
     )
 }

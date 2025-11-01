@@ -12,6 +12,8 @@ interface BloqueMapWithSettingsProps {
     bloqueName: string
     fincaName?: string
     camas?: any[]
+    grupos?: any[]
+    disableInteraction?: boolean
 }
 
 const CAMA_INTERVAL_LABELS: Record<CamaLabelInterval, string> = {
@@ -23,7 +25,7 @@ const CAMA_INTERVAL_LABELS: Record<CamaLabelInterval, string> = {
     none: 'None'
 }
 
-export function BloqueMapWithSettings({ bloqueId, bloqueName, fincaName, camas = [] }: BloqueMapWithSettingsProps) {
+export function BloqueMapWithSettings({ bloqueId, bloqueName, fincaName, camas = [], grupos = [], disableInteraction = false }: BloqueMapWithSettingsProps) {
     const [settings, setSettings] = useMapSettings()
 
     const updateSetting = <K extends keyof MapSettings>(key: K, value: MapSettings[K]) => {
@@ -105,7 +107,9 @@ export function BloqueMapWithSettings({ bloqueId, bloqueName, fincaName, camas =
                 bloqueName={bloqueName}
                 fincaName={fincaName}
                 camas={camas}
+                grupos={grupos}
                 settings={settings}
+                disableInteraction={disableInteraction}
             />
         </div>
     )
