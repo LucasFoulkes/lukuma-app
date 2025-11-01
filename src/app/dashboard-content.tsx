@@ -4,7 +4,10 @@ import * as React from "react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ObservationTable } from "@/components/observation-table"
 import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
+import { Download } from "lucide-react"
 import { type DateRange } from "react-day-picker"
+import * as XLSX from 'xlsx'
 
 interface DashboardContentProps {
     initialObservations: any[]
@@ -48,6 +51,25 @@ export function DashboardContent({ initialObservations, totalObservations, initi
             setIsLoadingMore(false)
         }
     }, [observations.length, isLoadingMore, hasMoreData])
+
+    // Function to download data as Excel
+    const downloadExcel = () => {
+        // Create a new workbook
+        const wb = XLSX.utils.book_new()
+        
+        // Convert data to worksheet
+        const ws = XLSX.utils.json_to_sheet(filteredData)
+        
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(wb, ws, 'Observaciones')
+        
+        // Generate filename with current date
+        const date = new Date().toISOString().split('T')[0]
+        const filename = `observaciones_${viewMode}_${date}.xlsx`
+        
+        // Write file
+        XLSX.writeFile(wb, filename)
+    }
 
     // Fetch observations when date changes
     React.useEffect(() => {
@@ -383,13 +405,21 @@ export function DashboardContent({ initialObservations, totalObservations, initi
 
     return (
         <>
-            <header className="flex items-center gap-4 border-b px-4 py-2">
-                <SidebarTrigger />
-                <h1 className="text-lg font-semibold">Tablero</h1>
-            </header>
-            <div className="flex-1 flex flex-col p-6 overflow-hidden">
-                <div className="flex items-center justify-between mb-6 flex-shrink-0">
-                    <h2 className="text-2xl font-bold">Observaciones</h2>
+            <header className="flex items-center justify-between border-b px-4 py-2">
+                <div className="flex items-center gap-4">
+                    <SidebarTrigger />
+                    <h1 className="text-lg font-semibold">Observaciones</h1>
+                </div>
+                <div className="flex items-center gap-4">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={downloadExcel}
+                        className="gap-2"
+                    >
+                        <Download className="h-4 w-4" />
+                        Excel
+                    </Button>
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">Por Cama</span>
                         <Switch
@@ -399,7 +429,8 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                         <span className="text-sm font-medium">Por Bloque</span>
                     </div>
                 </div>
-
+            </header>
+            <div className="flex-1 flex flex-col p-6 overflow-hidden">
                 {error ? (
                     <div className="text-red-500 p-4 border border-red-300 rounded-lg bg-red-50">
                         <p className="font-semibold">Error:</p>
