@@ -412,10 +412,9 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                 </div>
                 <div className="flex items-center gap-4">
                     <Button
-                        variant="outline"
                         size="sm"
                         onClick={downloadExcel}
-                        className="gap-2"
+                        className="gap-2 bg-green-600 hover:bg-green-700 text-white"
                     >
                         <Download className="h-4 w-4" />
                         Excel
