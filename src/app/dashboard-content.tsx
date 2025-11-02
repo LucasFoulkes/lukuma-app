@@ -5,6 +5,9 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ObservationTable } from "@/components/observation-table"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import { Download } from "lucide-react"
 import { type DateRange } from "react-day-picker"
 import * as XLSX from 'xlsx'
@@ -51,25 +54,6 @@ export function DashboardContent({ initialObservations, totalObservations, initi
             setIsLoadingMore(false)
         }
     }, [observations.length, isLoadingMore, hasMoreData])
-
-    // Function to download data as Excel
-    const downloadExcel = () => {
-        // Create a new workbook
-        const wb = XLSX.utils.book_new()
-        
-        // Convert data to worksheet
-        const ws = XLSX.utils.json_to_sheet(filteredData)
-        
-        // Add worksheet to workbook
-        XLSX.utils.book_append_sheet(wb, ws, 'Observaciones')
-        
-        // Generate filename with current date
-        const date = new Date().toISOString().split('T')[0]
-        const filename = `observaciones_${viewMode}_${date}.xlsx`
-        
-        // Write file
-        XLSX.writeFile(wb, filename)
-    }
 
     // Fetch observations when date changes
     React.useEffect(() => {
@@ -406,6 +390,52 @@ export function DashboardContent({ initialObservations, totalObservations, initi
         })
     }, [observations, viewMode, camaCountsByBloque])
 
+    // Columns available for export (derived from filteredData)
+    const allColumns = React.useMemo(() => {
+        const cols = new Set<string>()
+        filteredData.forEach((row: Record<string, any>) => {
+            Object.keys(row).forEach(k => cols.add(k))
+        })
+        return Array.from(cols)
+    }, [filteredData])
+
+    const [exportOpen, setExportOpen] = React.useState(false)
+    const [selectedExportColumns, setSelectedExportColumns] = React.useState<string[]>([])
+
+    // Initialize selected columns when available
+    React.useEffect(() => {
+        setSelectedExportColumns(allColumns.slice())
+    }, [allColumns])
+
+    const toggleColumn = (col: string) => {
+        setSelectedExportColumns(prev =>
+            prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]
+        )
+    }
+
+    const downloadExcel = (columnsToExport?: string[]) => {
+        const cols = columnsToExport && columnsToExport.length > 0 ? columnsToExport : selectedExportColumns
+        // Create workbook
+        const wb = XLSX.utils.book_new()
+
+        // Map rows to selected columns
+        const rows = filteredData.map((row: Record<string, any>) => {
+            const out: Record<string, any> = {}
+            cols.forEach(col => {
+                out[col] = row[col]
+            })
+            return out
+        })
+
+        const ws = XLSX.utils.json_to_sheet(rows)
+        XLSX.utils.book_append_sheet(wb, ws, 'Observaciones')
+
+        const dateStr = new Date().toISOString().split('T')[0]
+        const filename = `observaciones_${viewMode}_${dateStr}.xlsx`
+        XLSX.writeFile(wb, filename)
+        setExportOpen(false)
+    }
+
     return (
         <>
             <header className="flex items-center justify-between border-b px-4 py-2">
@@ -416,7 +446,7 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                 <div className="flex items-center gap-4">
                     <Button
                         size="sm"
-                        onClick={downloadExcel}
+                        onClick={() => setExportOpen(true)}
                         className="gap-2 bg-green-600 hover:bg-green-700 text-white"
                     >
                         <Download className="h-4 w-4" />
@@ -432,6 +462,39 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                     </div>
                 </div>
             </header>
+            {/* Export dialog */}
+            <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Exportar a Excel</DialogTitle>
+                        <DialogDescription>Selecciona las columnas que quieres incluir en el archivo Excel.</DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-2 max-h-60 overflow-auto py-2">
+                        <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={() => setSelectedExportColumns(allColumns.slice())}>Seleccionar todo</Button>
+                            <Button size="sm" variant="outline" onClick={() => setSelectedExportColumns([])}>Borrar</Button>
+                        </div>
+                        {allColumns.map((col) => (
+                            <div key={col} className="flex items-center gap-2">
+                                <Checkbox
+                                    id={`col-${col}`}
+                                    checked={selectedExportColumns.includes(col)}
+                                    onCheckedChange={() => toggleColumn(col)}
+                                />
+                                <Label htmlFor={`col-${col}`}>{col}</Label>
+                            </div>
+                        ))}
+                    </div>
+
+                    <DialogFooter>
+                        <div className="flex gap-2">
+                            <Button variant="outline" onClick={() => setExportOpen(false)}>Cancelar</Button>
+                            <Button onClick={() => downloadExcel(selectedExportColumns)} className="bg-green-600 hover:bg-green-700 text-white">Exportar</Button>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             <div className="flex-1 flex flex-col p-6 overflow-hidden">
                 {error ? (
                     <div className="text-red-500 p-4 border border-red-300 rounded-lg bg-red-50">
