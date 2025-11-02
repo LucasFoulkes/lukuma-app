@@ -417,6 +417,7 @@ export function DashboardContent({ initialObservations, totalObservations, initi
         )
     }
 
+
     const downloadExcel = async (columnsToExport?: string[]) => {
         console.log('🚀 Starting export...')
         setIsExporting(true)
@@ -430,163 +431,195 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                 return
             }
             
-            // First, ensure we have ALL observations loaded
-            console.log('📥 Fetching all observations from database...')
-            let allObservations: any[] = [...observations]
-            let offset = observations.length
-            const limit = 1000
-            
-            // Fetch remaining data if we don't have it all
-            while (allObservations.length < totalObservations) {
-                console.log(`Fetching batch at offset ${offset}...`)
-                const response = await fetch(`/api/observations/more?offset=${offset}&limit=${limit}`)
-                if (!response.ok) {
-                    throw new Error('Failed to fetch observations for export')
+            // First, load ALL observations if we don't have them all
+            let allObs = [...observations]
+            if (observations.length < totalObservations) {
+                console.log(`📥 Loading all observations... (${observations.length}/${totalObservations})`)
+                
+                let offset = observations.length
+                const limit = 1000
+                
+                while (allObs.length < totalObservations) {
+                    const response = await fetch(`/api/observations/more?offset=${offset}&limit=${limit}`)
+                    if (!response.ok) break
+                    const result = await response.json()
+                    if (result.data.length === 0) break
+                    allObs = [...allObs, ...result.data]
+                    offset += result.data.length
                 }
-                const result = await response.json()
-                if (result.data.length === 0) break
-                allObservations = [...allObservations, ...result.data]
-                offset += result.data.length
+                
+                // Update state with all observations so infinite scroll has them too
+                setObservations(allObs)
+                setHasMoreData(allObs.length < totalObservations)
+                console.log(`✅ Loaded ${allObs.length} total observations`)
             }
             
-            console.log(`📊 Total observations: ${allObservations.length}`)
+            // Now process ALL observations using the same logic as filteredData
+            console.log('🔄 Processing all observations...')
             
-            // Now process all observations the same way as filteredData
-            // This will create the grouped/aggregated view just like what's shown in the table
-            let processedData: any[] = []
-            
-            if (viewMode === 'cama') {
-                const groupedByCama: Record<string, any> = {}
+            // Define type for grouped cama data
+            type GroupedCama = {
+                id_cama: number,
+                fecha: string,
+                cama_nombre: string,
+                bloque_nombre: string,
+                finca_nombre: string,
+                variedad_nombre: string,
+                usuario_nombre: string,
+                largo_metros: number,
+                ancho_metros: number,
+                observaciones: Record<string, number>,
+                observation_count: number,
+                first_observation: Date | null,
+                last_observation: Date | null
+            }
+
+            // Group by cama + date
+            const groupedByCama = allObs.reduce((acc, obs) => {
+                const obsDate = new Date(obs.creado_en)
+                const dateKey = obsDate.toISOString().split('T')[0]
+                const camaId = obs.id_cama
+                const groupKey = `${camaId}|${dateKey}`
                 
-                allObservations.forEach((obs: any) => {
-                    const obsDate = new Date(obs.fecha_observacion)
+                if (!acc[groupKey]) {
+                    const usuarioNombre = obs.usuario 
+                        ? `${obs.usuario.nombres || ''} ${obs.usuario.apellidos || ''}`.trim()
+                        : ''
+                    const variedadNombre = obs.cama?.grupo_cama?.variedad?.nombre || 'Sin variedad'
                     
-                    // Apply date filter if set
-                    if (date?.from && date?.to) {
-                        const fromDate = new Date(date.from)
-                        const toDate = new Date(date.to)
-                        fromDate.setHours(0, 0, 0, 0)
-                        toDate.setHours(23, 59, 59, 999)
-                        if (obsDate < fromDate || obsDate > toDate) return
+                    acc[groupKey] = {
+                        id_cama: camaId,
+                        fecha: dateKey,
+                        cama_nombre: obs.cama?.nombre || '',
+                        bloque_nombre: obs.cama?.grupo_cama?.bloque?.nombre || '',
+                        finca_nombre: obs.cama?.grupo_cama?.bloque?.finca?.nombre || '',
+                        variedad_nombre: variedadNombre,
+                        usuario_nombre: usuarioNombre,
+                        largo_metros: obs.cama?.largo_metros || 0,
+                        ancho_metros: obs.cama?.ancho_metros || 0,
+                        observaciones: {},
+                        observation_count: 0,
+                        first_observation: null as Date | null,
+                        last_observation: null as Date | null
                     }
+                }
+                
+                acc[groupKey].observation_count++
+                
+                const obsDateTime = new Date(obs.creado_en)
+                if (!acc[groupKey].first_observation || obsDateTime < acc[groupKey].first_observation!) {
+                    acc[groupKey].first_observation = obsDateTime
+                }
+                if (!acc[groupKey].last_observation || obsDateTime > acc[groupKey].last_observation!) {
+                    acc[groupKey].last_observation = obsDateTime
+                }
+                
+                const tipo = obs.tipo_observacion || 'Sin tipo'
+                const cantidad = parseFloat(obs.cantidad) || 0
+                
+                if (acc[groupKey].observaciones[tipo]) {
+                    acc[groupKey].observaciones[tipo] += cantidad
+                } else {
+                    acc[groupKey].observaciones[tipo] = cantidad
+                }
+                
+                return acc
+            }, {} as Record<string, GroupedCama>)
+
+            let result = (Object.values(groupedByCama) as GroupedCama[]).map((cama) => {
+                let timeSpan = 0
+                let timeSpanDisplay = '—'
+                if (cama.first_observation && cama.last_observation) {
+                    const diffMs = cama.last_observation.getTime() - cama.first_observation.getTime()
+                    timeSpan = diffMs / (1000 * 60)
+                    timeSpanDisplay = `${timeSpan.toFixed(2)} min`
+                }
+                
+                const largoMetros = cama.largo_metros || 0
+                const anchoMetros = cama.ancho_metros || 0
+                const areaCama = largoMetros * anchoMetros
+                const obsPerMetro = areaCama > 0 ? cama.observation_count / areaCama : 0
+                const timePerMetro = areaCama > 0 && timeSpan > 0 ? timeSpan / areaCama : 0
+                
+                const bloqueKey = `${cama.finca_nombre}|${cama.bloque_nombre}`
+                const areaProductiva = camaCountsByBloque[bloqueKey]?.areaProductiva || 0
+                const porcentajeArea = areaProductiva > 0 ? (areaCama / areaProductiva) * 100 : 0
+                
+                const row: Record<string, any> = {
+                    'Fecha': cama.fecha,
+                    'Finca': cama.finca_nombre,
+                    'Bloque': cama.bloque_nombre,
+                    'Cama': cama.cama_nombre,
+                    'Variedad': cama.variedad_nombre,
+                    'Área Observada (m²)': areaCama,
+                    '% del Bloque': porcentajeArea,
+                    'Usuario': cama.usuario_nombre,
+                    'Observaciones': cama.observation_count,
+                    'Obs/m²': obsPerMetro,
+                    'Tiempo Total': timeSpanDisplay,
+                    'Tiempo/m²': timePerMetro > 0 ? `${timePerMetro.toFixed(2)} min` : '—'
+                }
+                
+                Object.entries(cama.observaciones).forEach(([tipo, cantidad]) => {
+                    row[tipo] = cantidad
+                })
+                
+                return row
+            })
+
+            // If viewing by bloque, aggregate further
+            if (viewMode === 'bloque') {
+                const groupedByBloque = result.reduce((acc, row) => {
+                    const bloqueKey = `${row.Fecha}|${row.Finca}|${row.Bloque}|${row.Variedad}`
                     
-                    const dateKey = format(obsDate, 'yyyy-MM-dd')
-                    const camaId = obs.cama?.id_cama
-                    if (!camaId) return
-                    
-                    const key = `${camaId}|${dateKey}`
-                    
-                    if (!groupedByCama[key]) {
-                        groupedByCama[key] = {
-                            id_cama: camaId,
-                            fecha: dateKey,
-                            cama_nombre: obs.cama?.nombre_cama || '',
-                            Finca: obs.cama?.grupo_cama?.bloque?.finca?.nombre || '',
-                            Bloque: obs.cama?.grupo_cama?.bloque?.nombre || '',
-                            Variedad: obs.cama?.grupo_cama?.variedad?.nombre || '',
-                            Usuario: obs.usuario?.nombre || '',
-                            area: obs.cama?.area || 0,
-                            tallos_total: 0,
-                            tallos_buenos: 0,
-                            tallos_secos: 0,
-                            tallos_parciales: 0,
-                            tallos_viudas: 0,
-                            tallos_malos: 0,
-                            abortos: 0,
-                            boton_floral: 0,
-                            florescencia: 0
+                    if (!acc[bloqueKey]) {
+                        acc[bloqueKey] = {
+                            'Fecha': row.Fecha,
+                            'Finca': row.Finca,
+                            'Bloque': row.Bloque,
+                            'Variedad': row.Variedad,
+                            'Área Observada (m²)': 0,
+                            '% del Bloque': 0,
+                            'Usuario': row.Usuario,
+                            'Observaciones': 0,
+                            'Obs/m²': 0,
+                            'Tiempo Total': '—',
+                            'Tiempo/m²': '—',
+                            observaciones: {},
+                            totalAreaObservada: 0,
+                            camaIds: new Set()
                         }
                     }
                     
-                    groupedByCama[key].tallos_total += (obs.tallos_buenos || 0) + (obs.tallos_secos || 0) + (obs.tallos_parciales || 0) + (obs.tallos_viudas || 0) + (obs.tallos_malos || 0)
-                    groupedByCama[key].tallos_buenos += obs.tallos_buenos || 0
-                    groupedByCama[key].tallos_secos += obs.tallos_secos || 0
-                    groupedByCama[key].tallos_parciales += obs.tallos_parciales || 0
-                    groupedByCama[key].tallos_viudas += obs.tallos_viudas || 0
-                    groupedByCama[key].tallos_malos += obs.tallos_malos || 0
-                    groupedByCama[key].abortos += obs.abortos || 0
-                    groupedByCama[key].boton_floral += obs.boton_floral || 0
-                    groupedByCama[key].florescencia += obs.florescencia || 0
-                })
-                
-                processedData = Object.values(groupedByCama).map((cama: any) => {
-                    const area = cama.area
-                    return {
-                        Fecha: cama.fecha,
-                        Finca: cama.Finca,
-                        Bloque: cama.Bloque,
-                        Cama: cama.cama_nombre,
-                        Variedad: cama.Variedad,
-                        Usuario: cama.Usuario,
-                        'Tallos Total': cama.tallos_total,
-                        'Tallos Buenos': cama.tallos_buenos,
-                        'Tallos Secos': cama.tallos_secos,
-                        'Tallos Parciales': cama.tallos_parciales,
-                        'Tallos Viudas': cama.tallos_viudas,
-                        'Tallos Malos': cama.tallos_malos,
-                        'Abortos': cama.abortos,
-                        'Boton Floral': cama.boton_floral,
-                        'Florescencia': cama.florescencia,
-                        'Obs/m': area > 0 ? Number((cama.tallos_total / area).toFixed(2)) : 0
+                    const camaName = row['Cama']
+                    if (!acc[bloqueKey].camaIds.has(camaName)) {
+                        acc[bloqueKey].camaIds.add(camaName)
+                        acc[bloqueKey]['Área Observada (m²)'] += row['Área Observada (m²)'] || 0
+                        acc[bloqueKey].totalAreaObservada += row['Área Observada (m²)'] || 0
+                        acc[bloqueKey]['Observaciones'] += row['Observaciones'] || 0
                     }
-                })
-            } else {
-                const groupedByBloque: Record<string, any> = {}
+                    
+                    Object.keys(row).forEach(key => {
+                        if (!['Fecha', 'Finca', 'Bloque', 'Cama', 'Variedad', 'Área Observada (m²)', '% del Bloque', 'Usuario', 'Observaciones', 'Obs/m²', 'Tiempo Total', 'Tiempo/m²'].includes(key)) {
+                            if (typeof row[key] === 'number') {
+                                acc[bloqueKey].observaciones[key] = (acc[bloqueKey].observaciones[key] || 0) + row[key]
+                            }
+                        }
+                    })
+                    
+                    return acc
+                }, {} as Record<string, any>)
+                
                 const bloqueTimeSpans: Record<string, { first: Date | null, last: Date | null }> = {}
                 
-                allObservations.forEach((obs: any) => {
-                    const obsDateTime = new Date(obs.fecha_observacion)
-                    
-                    // Apply date filter if set
-                    if (date?.from && date?.to) {
-                        const fromDate = new Date(date.from)
-                        const toDate = new Date(date.to)
-                        fromDate.setHours(0, 0, 0, 0)
-                        toDate.setHours(23, 59, 59, 999)
-                        if (obsDateTime < fromDate || obsDateTime > toDate) return
-                    }
-                    
-                    const fecha = format(obsDateTime, 'yyyy-MM-dd')
+                allObs.forEach((obs: any) => {
+                    const obsDateTime = new Date(obs.creado_en)
+                    const fecha = obsDateTime.toISOString().split('T')[0]
                     const finca = obs.cama?.grupo_cama?.bloque?.finca?.nombre || ''
                     const bloque = obs.cama?.grupo_cama?.bloque?.nombre || ''
-                    const variedad = obs.cama?.grupo_cama?.variedad?.nombre || ''
-                    const usuario = obs.usuario?.nombre || ''
-                    const area = obs.cama?.area || 0
-                    
-                    const key = `${fecha}|${finca}|${bloque}|${variedad}`
-                    
-                    if (!groupedByBloque[key]) {
-                        groupedByBloque[key] = {
-                            Fecha: fecha,
-                            Finca: finca,
-                            Bloque: bloque,
-                            Variedad: variedad,
-                            Usuario: usuario,
-                            totalAreaObservada: 0,
-                            tallos_total: 0,
-                            tallos_buenos: 0,
-                            tallos_secos: 0,
-                            tallos_parciales: 0,
-                            tallos_viudas: 0,
-                            tallos_malos: 0,
-                            abortos: 0,
-                            boton_floral: 0,
-                            florescencia: 0
-                        }
-                    }
-                    
-                    groupedByBloque[key].totalAreaObservada += area
-                    groupedByBloque[key].tallos_total += (obs.tallos_buenos || 0) + (obs.tallos_secos || 0) + (obs.tallos_parciales || 0) + (obs.tallos_viudas || 0) + (obs.tallos_malos || 0)
-                    groupedByBloque[key].tallos_buenos += obs.tallos_buenos || 0
-                    groupedByBloque[key].tallos_secos += obs.tallos_secos || 0
-                    groupedByBloque[key].tallos_parciales += obs.tallos_parciales || 0
-                    groupedByBloque[key].tallos_viudas += obs.tallos_viudas || 0
-                    groupedByBloque[key].tallos_malos += obs.tallos_malos || 0
-                    groupedByBloque[key].abortos += obs.abortos || 0
-                    groupedByBloque[key].boton_floral += obs.boton_floral || 0
-                    groupedByBloque[key].florescencia += obs.florescencia || 0
-                    
+                    const variedad = obs.cama?.grupo_cama?.variedad?.nombre || 'Sin variedad'
                     const bloqueKey = `${fecha}|${finca}|${bloque}|${variedad}`
+                    
                     if (!bloqueTimeSpans[bloqueKey]) {
                         bloqueTimeSpans[bloqueKey] = { first: null, last: null }
                     }
@@ -599,52 +632,65 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                     }
                 })
                 
-                processedData = Object.values(groupedByBloque).map((bloque: any) => {
+                result = Object.values(groupedByBloque).map((bloque: any) => {
                     const bloqueKeyForArea = `${bloque.Finca}|${bloque.Bloque}`
                     const bloqueKeyForTime = `${bloque.Fecha}|${bloque.Finca}|${bloque.Bloque}|${bloque.Variedad}`
                     const areaObservada = bloque.totalAreaObservada
                     const areaProductiva = camaCountsByBloque[bloqueKeyForArea]?.areaProductiva || 0
                     const porcentaje = areaProductiva > 0 ? (areaObservada / areaProductiva) * 100 : 0
+                    const obsPerMetro = areaObservada > 0 ? bloque.Observaciones / areaObservada : 0
                     
+                    let tiempoTotal = '—'
+                    let tiempoPorMetro = '—'
                     const timeSpan = bloqueTimeSpans[bloqueKeyForTime]
-                    const horaInicio = timeSpan?.first ? format(timeSpan.first, 'HH:mm', { locale: es }) : ''
-                    const horaFin = timeSpan?.last ? format(timeSpan.last, 'HH:mm', { locale: es }) : ''
-                    const horaRange = horaInicio && horaFin ? `${horaInicio}-${horaFin}` : ''
-                    
-                    return {
-                        Fecha: bloque.Fecha,
-                        Hora: horaRange,
-                        Finca: bloque.Finca,
-                        Bloque: bloque.Bloque,
-                        Variedad: bloque.Variedad,
-                        Usuario: bloque.Usuario,
-                        'Tallos Total': bloque.tallos_total,
-                        'Tallos Buenos': bloque.tallos_buenos,
-                        'Tallos Secos': bloque.tallos_secos,
-                        'Tallos Parciales': bloque.tallos_parciales,
-                        'Tallos Viudas': bloque.tallos_viudas,
-                        'Tallos Malos': bloque.tallos_malos,
-                        'Abortos': bloque.abortos,
-                        'Boton Floral': bloque.boton_floral,
-                        'Florescencia': bloque.florescencia,
-                        'Obs/m': areaObservada > 0 ? Number((bloque.tallos_total / areaObservada).toFixed(2)) : 0,
-                        '%': Number(porcentaje.toFixed(1))
+                    if (timeSpan?.first && timeSpan?.last) {
+                        const diffMs = timeSpan.last.getTime() - timeSpan.first.getTime()
+                        const tiempoMinutos = diffMs / (1000 * 60)
+                        tiempoTotal = `${tiempoMinutos.toFixed(2)} min`
+                        
+                        if (areaObservada > 0) {
+                            const tiempoPerM = tiempoMinutos / areaObservada
+                            tiempoPorMetro = `${tiempoPerM.toFixed(2)} min`
+                        }
                     }
+                    
+                    const resultRow: Record<string, any> = {
+                        'Fecha': bloque.Fecha,
+                        'Finca': bloque.Finca,
+                        'Bloque': bloque.Bloque,
+                        'Variedad': bloque.Variedad,
+                        'Área Observada (m²)': areaObservada,
+                        '% del Bloque': porcentaje,
+                        'Usuario': bloque.Usuario,
+                        'Observaciones': bloque.Observaciones,
+                        'Obs/m²': obsPerMetro,
+                        'Tiempo Total': tiempoTotal,
+                        'Tiempo/m²': tiempoPorMetro
+                    }
+                    
+                    Object.entries(bloque.observaciones).forEach(([tipo, cantidad]) => {
+                        resultRow[tipo] = cantidad
+                    })
+                    
+                    return resultRow
                 })
             }
             
+            console.log(`📊 Processed ${result.length} rows from ${allObs.length} observations`)
+            
             // Apply table filters (Finca, Bloque, Variedad, Usuario)
+            let dataToExport = result
             Object.entries(tableFilters).forEach(([column, value]) => {
                 if (value) {
-                    processedData = processedData.filter((row: any) => 
+                    dataToExport = dataToExport.filter((row: any) => 
                         String(row[column]) === String(value)
                     )
                 }
             })
             
-            console.log(`📊 Processed data: ${processedData.length} rows`)
+            console.log(`📊 After table filters: ${dataToExport.length} rows`)
             
-            if (processedData.length === 0) {
+            if (dataToExport.length === 0) {
                 alert('No hay datos para exportar con los filtros aplicados')
                 setIsExporting(false)
                 return
@@ -653,7 +699,7 @@ export function DashboardContent({ initialObservations, totalObservations, initi
             // Create workbook with selected columns
             console.log('📝 Creating Excel workbook...')
             const wb = XLSX.utils.book_new()
-            const rows = processedData.map((row: Record<string, any>) => {
+            const rows = dataToExport.map((row: Record<string, any>) => {
                 const out: Record<string, any> = {}
                 cols.forEach(col => {
                     out[col] = row[col]
