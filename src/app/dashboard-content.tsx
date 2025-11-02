@@ -418,53 +418,58 @@ export function DashboardContent({ initialObservations, totalObservations, initi
     }
 
     const downloadExcel = async (columnsToExport?: string[]) => {
+        console.log('🚀 Starting export...')
         setIsExporting(true)
         try {
             const cols = columnsToExport && columnsToExport.length > 0 ? columnsToExport : selectedExportColumns
+            console.log('📋 Columns to export:', cols)
             
-            // Fetch ALL observations from database
-            let allObservations: any[] = []
-            let offset = 0
+            if (cols.length === 0) {
+                alert('Por favor, selecciona al menos una columna para exportar')
+                setIsExporting(false)
+                return
+            }
+            
+            // First, ensure we have ALL observations loaded
+            console.log('📥 Fetching all observations from database...')
+            let allObservations: any[] = [...observations]
+            let offset = observations.length
             const limit = 1000
-            let hasMore = true
             
-            while (hasMore) {
+            // Fetch remaining data if we don't have it all
+            while (allObservations.length < totalObservations) {
+                console.log(`Fetching batch at offset ${offset}...`)
                 const response = await fetch(`/api/observations/more?offset=${offset}&limit=${limit}`)
                 if (!response.ok) {
                     throw new Error('Failed to fetch observations for export')
                 }
                 const result = await response.json()
+                if (result.data.length === 0) break
                 allObservations = [...allObservations, ...result.data]
-                offset += limit
-                hasMore = result.data.length === limit
+                offset += result.data.length
             }
             
-            console.log(`📊 Fetched ${allObservations.length} total observations for export`)
+            console.log(`📊 Total observations: ${allObservations.length}`)
             
-            // Apply the same filtering/grouping logic as filteredData
-            // Filter by date range if set
-            let filtered = allObservations
-            if (date?.from && date?.to) {
-                const fromDate = new Date(date.from)
-                const toDate = new Date(date.to)
-                fromDate.setHours(0, 0, 0, 0)
-                toDate.setHours(23, 59, 59, 999)
-                
-                filtered = filtered.filter((obs: any) => {
-                    const obsDate = new Date(obs.fecha_observacion)
-                    return obsDate >= fromDate && obsDate <= toDate
-                })
-            }
-            
-            // Process data with same grouping logic as filteredData
+            // Now process all observations the same way as filteredData
+            // This will create the grouped/aggregated view just like what's shown in the table
             let processedData: any[] = []
             
             if (viewMode === 'cama') {
-                // Group by cama and date
                 const groupedByCama: Record<string, any> = {}
                 
-                filtered.forEach((obs: any) => {
+                allObservations.forEach((obs: any) => {
                     const obsDate = new Date(obs.fecha_observacion)
+                    
+                    // Apply date filter if set
+                    if (date?.from && date?.to) {
+                        const fromDate = new Date(date.from)
+                        const toDate = new Date(date.to)
+                        fromDate.setHours(0, 0, 0, 0)
+                        toDate.setHours(23, 59, 59, 999)
+                        if (obsDate < fromDate || obsDate > toDate) return
+                    }
+                    
                     const dateKey = format(obsDate, 'yyyy-MM-dd')
                     const camaId = obs.cama?.id_cama
                     if (!camaId) return
@@ -526,12 +531,21 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                     }
                 })
             } else {
-                // Group by date, finca, bloque, variedad
                 const groupedByBloque: Record<string, any> = {}
                 const bloqueTimeSpans: Record<string, { first: Date | null, last: Date | null }> = {}
                 
-                filtered.forEach((obs: any) => {
+                allObservations.forEach((obs: any) => {
                     const obsDateTime = new Date(obs.fecha_observacion)
+                    
+                    // Apply date filter if set
+                    if (date?.from && date?.to) {
+                        const fromDate = new Date(date.from)
+                        const toDate = new Date(date.to)
+                        fromDate.setHours(0, 0, 0, 0)
+                        toDate.setHours(23, 59, 59, 999)
+                        if (obsDateTime < fromDate || obsDateTime > toDate) return
+                    }
+                    
                     const fecha = format(obsDateTime, 'yyyy-MM-dd')
                     const finca = obs.cama?.grupo_cama?.bloque?.finca?.nombre || ''
                     const bloque = obs.cama?.grupo_cama?.bloque?.nombre || ''
@@ -628,9 +642,16 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                 }
             })
             
-            console.log(`📊 After filtering: ${processedData.length} rows to export`)
+            console.log(`📊 Processed data: ${processedData.length} rows`)
+            
+            if (processedData.length === 0) {
+                alert('No hay datos para exportar con los filtros aplicados')
+                setIsExporting(false)
+                return
+            }
             
             // Create workbook with selected columns
+            console.log('📝 Creating Excel workbook...')
             const wb = XLSX.utils.book_new()
             const rows = processedData.map((row: Record<string, any>) => {
                 const out: Record<string, any> = {}
@@ -639,17 +660,21 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                 })
                 return out
             })
+            
+            console.log(`📝 Mapped ${rows.length} rows with ${cols.length} columns`)
 
             const ws = XLSX.utils.json_to_sheet(rows)
             XLSX.utils.book_append_sheet(wb, ws, 'Observaciones')
 
             const dateStr = new Date().toISOString().split('T')[0]
             const filename = `observaciones_${viewMode}_${dateStr}.xlsx`
+            console.log(`💾 Writing file: ${filename}`)
             XLSX.writeFile(wb, filename)
+            console.log('✅ Export complete!')
             setExportOpen(false)
         } catch (err) {
-            console.error('Error exporting:', err)
-            alert('Error al exportar datos. Por favor, intente de nuevo.')
+            console.error('❌ Error exporting:', err)
+            alert(`Error al exportar datos: ${err instanceof Error ? err.message : 'Error desconocido'}`)
         } finally {
             setIsExporting(false)
         }
