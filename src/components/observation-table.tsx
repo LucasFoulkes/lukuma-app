@@ -31,6 +31,7 @@ interface ObservationTableProps {
     isLoadingMore?: boolean
     totalObservations?: number
     loadedObservations?: number
+    onFiltersChange?: (filters: Record<string, string>) => void
 }
 
 const ITEMS_PER_PAGE = 100 // Show 100 rows at a time
@@ -67,7 +68,8 @@ export function ObservationTable({
     hasMoreData = false,
     isLoadingMore = false,
     totalObservations = 0,
-    loadedObservations = 0
+    loadedObservations = 0,
+    onFiltersChange
 }: ObservationTableProps) {
     const [dateRange, setDateRange] = React.useState<DateRange | undefined>(initialDateRange)
     const [visibleRows, setVisibleRows] = React.useState(ITEMS_PER_PAGE)
@@ -77,6 +79,13 @@ export function ObservationTable({
     
     // Filter state for combobox columns
     const [filters, setFilters] = React.useState<Record<string, string>>({})
+    
+    // Notify parent when filters change
+    React.useEffect(() => {
+        if (onFiltersChange) {
+            onFiltersChange(filters)
+        }
+    }, [filters, onFiltersChange])
     
     // Sort state
     const [sortColumn, setSortColumn] = React.useState<string | null>(null)

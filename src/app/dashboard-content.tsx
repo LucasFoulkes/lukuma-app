@@ -10,6 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Download } from "lucide-react"
 import { type DateRange } from "react-day-picker"
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import * as XLSX from 'xlsx'
 
 interface DashboardContentProps {
@@ -29,6 +31,8 @@ export function DashboardContent({ initialObservations, totalObservations, initi
     const [error, setError] = React.useState<string | null>(initialError)
     const [viewMode, setViewMode] = React.useState<'cama' | 'bloque'>('bloque')
     const [hasMoreData, setHasMoreData] = React.useState(initialObservations.length < totalObservations)
+    const [tableFilters, setTableFilters] = React.useState<Record<string, string>>({})
+    const [isExporting, setIsExporting] = React.useState(false)
 
     // Function to load more observations from the database
     const loadMoreObservations = React.useCallback(async () => {
@@ -413,27 +417,242 @@ export function DashboardContent({ initialObservations, totalObservations, initi
         )
     }
 
-    const downloadExcel = (columnsToExport?: string[]) => {
-        const cols = columnsToExport && columnsToExport.length > 0 ? columnsToExport : selectedExportColumns
-        // Create workbook
-        const wb = XLSX.utils.book_new()
-
-        // Map rows to selected columns
-        const rows = filteredData.map((row: Record<string, any>) => {
-            const out: Record<string, any> = {}
-            cols.forEach(col => {
-                out[col] = row[col]
+    const downloadExcel = async (columnsToExport?: string[]) => {
+        setIsExporting(true)
+        try {
+            const cols = columnsToExport && columnsToExport.length > 0 ? columnsToExport : selectedExportColumns
+            
+            // Fetch ALL observations from database
+            let allObservations: any[] = []
+            let offset = 0
+            const limit = 1000
+            let hasMore = true
+            
+            while (hasMore) {
+                const response = await fetch(`/api/observations/more?offset=${offset}&limit=${limit}`)
+                if (!response.ok) {
+                    throw new Error('Failed to fetch observations for export')
+                }
+                const result = await response.json()
+                allObservations = [...allObservations, ...result.data]
+                offset += limit
+                hasMore = result.data.length === limit
+            }
+            
+            console.log(`📊 Fetched ${allObservations.length} total observations for export`)
+            
+            // Apply the same filtering/grouping logic as filteredData
+            // Filter by date range if set
+            let filtered = allObservations
+            if (date?.from && date?.to) {
+                const fromDate = new Date(date.from)
+                const toDate = new Date(date.to)
+                fromDate.setHours(0, 0, 0, 0)
+                toDate.setHours(23, 59, 59, 999)
+                
+                filtered = filtered.filter((obs: any) => {
+                    const obsDate = new Date(obs.fecha_observacion)
+                    return obsDate >= fromDate && obsDate <= toDate
+                })
+            }
+            
+            // Process data with same grouping logic as filteredData
+            let processedData: any[] = []
+            
+            if (viewMode === 'cama') {
+                // Group by cama and date
+                const groupedByCama: Record<string, any> = {}
+                
+                filtered.forEach((obs: any) => {
+                    const obsDate = new Date(obs.fecha_observacion)
+                    const dateKey = format(obsDate, 'yyyy-MM-dd')
+                    const camaId = obs.cama?.id_cama
+                    if (!camaId) return
+                    
+                    const key = `${camaId}|${dateKey}`
+                    
+                    if (!groupedByCama[key]) {
+                        groupedByCama[key] = {
+                            id_cama: camaId,
+                            fecha: dateKey,
+                            cama_nombre: obs.cama?.nombre_cama || '',
+                            Finca: obs.cama?.grupo_cama?.bloque?.finca?.nombre || '',
+                            Bloque: obs.cama?.grupo_cama?.bloque?.nombre || '',
+                            Variedad: obs.cama?.grupo_cama?.variedad?.nombre || '',
+                            Usuario: obs.usuario?.nombre || '',
+                            area: obs.cama?.area || 0,
+                            tallos_total: 0,
+                            tallos_buenos: 0,
+                            tallos_secos: 0,
+                            tallos_parciales: 0,
+                            tallos_viudas: 0,
+                            tallos_malos: 0,
+                            abortos: 0,
+                            boton_floral: 0,
+                            florescencia: 0
+                        }
+                    }
+                    
+                    groupedByCama[key].tallos_total += (obs.tallos_buenos || 0) + (obs.tallos_secos || 0) + (obs.tallos_parciales || 0) + (obs.tallos_viudas || 0) + (obs.tallos_malos || 0)
+                    groupedByCama[key].tallos_buenos += obs.tallos_buenos || 0
+                    groupedByCama[key].tallos_secos += obs.tallos_secos || 0
+                    groupedByCama[key].tallos_parciales += obs.tallos_parciales || 0
+                    groupedByCama[key].tallos_viudas += obs.tallos_viudas || 0
+                    groupedByCama[key].tallos_malos += obs.tallos_malos || 0
+                    groupedByCama[key].abortos += obs.abortos || 0
+                    groupedByCama[key].boton_floral += obs.boton_floral || 0
+                    groupedByCama[key].florescencia += obs.florescencia || 0
+                })
+                
+                processedData = Object.values(groupedByCama).map((cama: any) => {
+                    const area = cama.area
+                    return {
+                        Fecha: cama.fecha,
+                        Finca: cama.Finca,
+                        Bloque: cama.Bloque,
+                        Cama: cama.cama_nombre,
+                        Variedad: cama.Variedad,
+                        Usuario: cama.Usuario,
+                        'Tallos Total': cama.tallos_total,
+                        'Tallos Buenos': cama.tallos_buenos,
+                        'Tallos Secos': cama.tallos_secos,
+                        'Tallos Parciales': cama.tallos_parciales,
+                        'Tallos Viudas': cama.tallos_viudas,
+                        'Tallos Malos': cama.tallos_malos,
+                        'Abortos': cama.abortos,
+                        'Boton Floral': cama.boton_floral,
+                        'Florescencia': cama.florescencia,
+                        'Obs/m': area > 0 ? Number((cama.tallos_total / area).toFixed(2)) : 0
+                    }
+                })
+            } else {
+                // Group by date, finca, bloque, variedad
+                const groupedByBloque: Record<string, any> = {}
+                const bloqueTimeSpans: Record<string, { first: Date | null, last: Date | null }> = {}
+                
+                filtered.forEach((obs: any) => {
+                    const obsDateTime = new Date(obs.fecha_observacion)
+                    const fecha = format(obsDateTime, 'yyyy-MM-dd')
+                    const finca = obs.cama?.grupo_cama?.bloque?.finca?.nombre || ''
+                    const bloque = obs.cama?.grupo_cama?.bloque?.nombre || ''
+                    const variedad = obs.cama?.grupo_cama?.variedad?.nombre || ''
+                    const usuario = obs.usuario?.nombre || ''
+                    const area = obs.cama?.area || 0
+                    
+                    const key = `${fecha}|${finca}|${bloque}|${variedad}`
+                    
+                    if (!groupedByBloque[key]) {
+                        groupedByBloque[key] = {
+                            Fecha: fecha,
+                            Finca: finca,
+                            Bloque: bloque,
+                            Variedad: variedad,
+                            Usuario: usuario,
+                            totalAreaObservada: 0,
+                            tallos_total: 0,
+                            tallos_buenos: 0,
+                            tallos_secos: 0,
+                            tallos_parciales: 0,
+                            tallos_viudas: 0,
+                            tallos_malos: 0,
+                            abortos: 0,
+                            boton_floral: 0,
+                            florescencia: 0
+                        }
+                    }
+                    
+                    groupedByBloque[key].totalAreaObservada += area
+                    groupedByBloque[key].tallos_total += (obs.tallos_buenos || 0) + (obs.tallos_secos || 0) + (obs.tallos_parciales || 0) + (obs.tallos_viudas || 0) + (obs.tallos_malos || 0)
+                    groupedByBloque[key].tallos_buenos += obs.tallos_buenos || 0
+                    groupedByBloque[key].tallos_secos += obs.tallos_secos || 0
+                    groupedByBloque[key].tallos_parciales += obs.tallos_parciales || 0
+                    groupedByBloque[key].tallos_viudas += obs.tallos_viudas || 0
+                    groupedByBloque[key].tallos_malos += obs.tallos_malos || 0
+                    groupedByBloque[key].abortos += obs.abortos || 0
+                    groupedByBloque[key].boton_floral += obs.boton_floral || 0
+                    groupedByBloque[key].florescencia += obs.florescencia || 0
+                    
+                    const bloqueKey = `${fecha}|${finca}|${bloque}|${variedad}`
+                    if (!bloqueTimeSpans[bloqueKey]) {
+                        bloqueTimeSpans[bloqueKey] = { first: null, last: null }
+                    }
+                    
+                    if (!bloqueTimeSpans[bloqueKey].first || obsDateTime < bloqueTimeSpans[bloqueKey].first!) {
+                        bloqueTimeSpans[bloqueKey].first = obsDateTime
+                    }
+                    if (!bloqueTimeSpans[bloqueKey].last || obsDateTime > bloqueTimeSpans[bloqueKey].last!) {
+                        bloqueTimeSpans[bloqueKey].last = obsDateTime
+                    }
+                })
+                
+                processedData = Object.values(groupedByBloque).map((bloque: any) => {
+                    const bloqueKeyForArea = `${bloque.Finca}|${bloque.Bloque}`
+                    const bloqueKeyForTime = `${bloque.Fecha}|${bloque.Finca}|${bloque.Bloque}|${bloque.Variedad}`
+                    const areaObservada = bloque.totalAreaObservada
+                    const areaProductiva = camaCountsByBloque[bloqueKeyForArea]?.areaProductiva || 0
+                    const porcentaje = areaProductiva > 0 ? (areaObservada / areaProductiva) * 100 : 0
+                    
+                    const timeSpan = bloqueTimeSpans[bloqueKeyForTime]
+                    const horaInicio = timeSpan?.first ? format(timeSpan.first, 'HH:mm', { locale: es }) : ''
+                    const horaFin = timeSpan?.last ? format(timeSpan.last, 'HH:mm', { locale: es }) : ''
+                    const horaRange = horaInicio && horaFin ? `${horaInicio}-${horaFin}` : ''
+                    
+                    return {
+                        Fecha: bloque.Fecha,
+                        Hora: horaRange,
+                        Finca: bloque.Finca,
+                        Bloque: bloque.Bloque,
+                        Variedad: bloque.Variedad,
+                        Usuario: bloque.Usuario,
+                        'Tallos Total': bloque.tallos_total,
+                        'Tallos Buenos': bloque.tallos_buenos,
+                        'Tallos Secos': bloque.tallos_secos,
+                        'Tallos Parciales': bloque.tallos_parciales,
+                        'Tallos Viudas': bloque.tallos_viudas,
+                        'Tallos Malos': bloque.tallos_malos,
+                        'Abortos': bloque.abortos,
+                        'Boton Floral': bloque.boton_floral,
+                        'Florescencia': bloque.florescencia,
+                        'Obs/m': areaObservada > 0 ? Number((bloque.tallos_total / areaObservada).toFixed(2)) : 0,
+                        '%': Number(porcentaje.toFixed(1))
+                    }
+                })
+            }
+            
+            // Apply table filters (Finca, Bloque, Variedad, Usuario)
+            Object.entries(tableFilters).forEach(([column, value]) => {
+                if (value) {
+                    processedData = processedData.filter((row: any) => 
+                        String(row[column]) === String(value)
+                    )
+                }
             })
-            return out
-        })
+            
+            console.log(`📊 After filtering: ${processedData.length} rows to export`)
+            
+            // Create workbook with selected columns
+            const wb = XLSX.utils.book_new()
+            const rows = processedData.map((row: Record<string, any>) => {
+                const out: Record<string, any> = {}
+                cols.forEach(col => {
+                    out[col] = row[col]
+                })
+                return out
+            })
 
-        const ws = XLSX.utils.json_to_sheet(rows)
-        XLSX.utils.book_append_sheet(wb, ws, 'Observaciones')
+            const ws = XLSX.utils.json_to_sheet(rows)
+            XLSX.utils.book_append_sheet(wb, ws, 'Observaciones')
 
-        const dateStr = new Date().toISOString().split('T')[0]
-        const filename = `observaciones_${viewMode}_${dateStr}.xlsx`
-        XLSX.writeFile(wb, filename)
-        setExportOpen(false)
+            const dateStr = new Date().toISOString().split('T')[0]
+            const filename = `observaciones_${viewMode}_${dateStr}.xlsx`
+            XLSX.writeFile(wb, filename)
+            setExportOpen(false)
+        } catch (err) {
+            console.error('Error exporting:', err)
+            alert('Error al exportar datos. Por favor, intente de nuevo.')
+        } finally {
+            setIsExporting(false)
+        }
     }
 
     return (
@@ -490,8 +709,14 @@ export function DashboardContent({ initialObservations, totalObservations, initi
 
                     <DialogFooter>
                         <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => setExportOpen(false)}>Cancelar</Button>
-                            <Button onClick={() => downloadExcel(selectedExportColumns)} className="bg-green-600 hover:bg-green-700 text-white">Exportar</Button>
+                            <Button variant="outline" onClick={() => setExportOpen(false)} disabled={isExporting}>Cancelar</Button>
+                            <Button 
+                                onClick={() => downloadExcel(selectedExportColumns)} 
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                                disabled={isExporting}
+                            >
+                                {isExporting ? 'Exportando...' : 'Exportar'}
+                            </Button>
                         </div>
                     </DialogFooter>
                 </DialogContent>
@@ -515,6 +740,7 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                             isLoadingMore={isLoadingMore}
                             totalObservations={totalObservations}
                             loadedObservations={observations.length}
+                            onFiltersChange={setTableFilters}
                         />
                     </div>
                 )}
