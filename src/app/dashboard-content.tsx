@@ -109,6 +109,23 @@ export function DashboardContent({ initialObservations, totalObservations, initi
         console.log('🔍 Total observations:', observations.length)
         if (observations.length === 0) return []
 
+        // Define type for grouped cama data
+        type GroupedCama = {
+            id_cama: number,
+            fecha: string,
+            cama_nombre: string,
+            bloque_nombre: string,
+            finca_nombre: string,
+            variedad_nombre: string,
+            usuario_nombre: string,
+            largo_metros: number,
+            ancho_metros: number,
+            observaciones: Record<string, number>,
+            observation_count: number,
+            first_observation: Date | null,
+            last_observation: Date | null
+        }
+
         // Group by cama + date and aggregate by tipo_observacion
         const groupedByCama = observations.reduce((acc, obs) => {
             // Get the date (YYYY-MM-DD) from the observation
@@ -165,24 +182,10 @@ export function DashboardContent({ initialObservations, totalObservations, initi
             }
             
             return acc
-        }, {} as Record<string, { 
-            id_cama: number,
-            fecha: string,
-            cama_nombre: string,
-            bloque_nombre: string,
-            finca_nombre: string,
-            variedad_nombre: string,
-            usuario_nombre: string,
-            largo_metros: number,
-            ancho_metros: number,
-            observaciones: Record<string, number>,
-            observation_count: number,
-            first_observation: Date | null,
-            last_observation: Date | null
-        }>)
+        }, {} as Record<string, GroupedCama>)
 
         // Convert to array and flatten the observaciones into columns
-        const result = Object.values(groupedByCama).map((cama) => {
+        const result = (Object.values(groupedByCama) as GroupedCama[]).map((cama) => {
             // Calculate time span in minutes
             let timeSpan = 0
             let timeSpanDisplay = '—'
