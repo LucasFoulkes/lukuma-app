@@ -444,14 +444,6 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                     <h1 className="text-lg font-semibold">Observaciones</h1>
                 </div>
                 <div className="flex items-center gap-4">
-                    <Button
-                        size="sm"
-                        onClick={() => setExportOpen(true)}
-                        className="gap-2 bg-green-600 hover:bg-green-700 text-white"
-                    >
-                        <Download className="h-4 w-4" />
-                        Excel
-                    </Button>
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">Por Cama</span>
                         <Switch
@@ -460,6 +452,15 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                         />
                         <span className="text-sm font-medium">Por Bloque</span>
                     </div>
+                    <Button
+                        size="sm"
+                        onClick={() => setExportOpen(true)}
+                        className="gap-2 border-green-600 text-green-600 hover:bg-green-50"
+                        variant="outline"
+                    >
+                        <Download className="h-4 w-4" />
+                        Excel
+                    </Button>
                 </div>
             </header>
             {/* Export dialog */}
