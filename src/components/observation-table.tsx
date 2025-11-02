@@ -97,9 +97,20 @@ export function ObservationTable({
     // Determine which columns should have combobox filters
     const comboboxColumns = ['Finca', 'Bloque', 'Variedad', 'Usuario']
     
-    // Get unique values for combobox columns
+    // Get unique values for combobox columns based on currently filtered data
     const getUniqueValues = (column: string) => {
-        const values = new Set(data.map(row => row[column]).filter(v => v != null))
+        // Start with all data
+        let filteredForColumn = [...data]
+        
+        // Apply OTHER filters (not the current column's filter)
+        Object.entries(filters).forEach(([filterColumn, value]) => {
+            if (filterColumn !== column && value) {
+                filteredForColumn = filteredForColumn.filter(row => row[filterColumn] === value)
+            }
+        })
+        
+        // Get unique values from the filtered data
+        const values = new Set(filteredForColumn.map(row => row[column]).filter(v => v != null))
         return Array.from(values).sort()
     }
     

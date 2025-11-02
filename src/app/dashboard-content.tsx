@@ -59,6 +59,49 @@ export function DashboardContent({ initialObservations, totalObservations, initi
         }
     }, [observations.length, isLoadingMore, hasMoreData])
 
+    // Function to load ALL observations if not already loaded
+    const ensureAllDataLoaded = React.useCallback(async () => {
+        if (observations.length >= totalObservations) {
+            return // Already have all data
+        }
+
+        console.log(`📥 Loading all observations for filtering... (${observations.length}/${totalObservations})`)
+        setIsLoadingMore(true)
+        
+        try {
+            let allObs = [...observations]
+            let offset = observations.length
+            const limit = 1000
+            
+            while (allObs.length < totalObservations) {
+                const response = await fetch(`/api/observations/more?offset=${offset}&limit=${limit}`)
+                if (!response.ok) break
+                const result = await response.json()
+                if (result.data.length === 0) break
+                allObs = [...allObs, ...result.data]
+                offset += result.data.length
+            }
+            
+            setObservations(allObs)
+            setHasMoreData(allObs.length < totalObservations)
+            console.log(`✅ Loaded ${allObs.length} total observations`)
+        } catch (err) {
+            console.error('Error loading all observations:', err)
+        } finally {
+            setIsLoadingMore(false)
+        }
+    }, [observations, totalObservations])
+
+    // Handle filter changes - load all data first
+    const handleFiltersChange = React.useCallback(async (filters: Record<string, string>) => {
+        // If filters are being applied and we don't have all data, load it first
+        const hasFilters = Object.keys(filters).length > 0
+        if (hasFilters && observations.length < totalObservations) {
+            await ensureAllDataLoaded()
+        }
+        setTableFilters(filters)
+    }, [observations.length, totalObservations, ensureAllDataLoaded])
+
     // Fetch observations when date changes
     React.useEffect(() => {
         if (!date?.from || !date?.to) return
@@ -811,7 +854,7 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                             isLoadingMore={isLoadingMore}
                             totalObservations={totalObservations}
                             loadedObservations={observations.length}
-                            onFiltersChange={setTableFilters}
+                            onFiltersChange={handleFiltersChange}
                         />
                     </div>
                 )}
