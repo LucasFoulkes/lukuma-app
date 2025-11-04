@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { getTable } from "@/services/db"
 import { DataTable } from "@/components/data-table"
 import { getColumnsForTable } from "@/lib/tables"
 import { TableSelector } from "@/components/table-selector"
 
-export default function Home() {
+function TablesContent() {
   const searchParams = useSearchParams()
   const tableName = searchParams.get('table') || 'finca'
   
@@ -73,5 +73,17 @@ export default function Home() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-muted-foreground">Cargando...</div>
+      </div>
+    }>
+      <TablesContent />
+    </Suspense>
   )
 }
