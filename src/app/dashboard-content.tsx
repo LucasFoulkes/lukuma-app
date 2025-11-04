@@ -14,25 +14,52 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import * as XLSX from 'xlsx'
 
-interface DashboardContentProps {
-    initialObservations: any[]
-    totalObservations: number
-    initialDate: Date
-    camaCountsByBloque: Record<string, { finca: string, bloque: string, count: number, area: number, areaProductiva: number }>
-    error: string | null
-}
-
-export function DashboardContent({ initialObservations, totalObservations, initialDate, camaCountsByBloque, error: initialError }: DashboardContentProps) {
+export function DashboardContent() {
     // Start with no date filter - show all observations
     const [date, setDate] = React.useState<DateRange | undefined>(undefined)
-    const [observations, setObservations] = React.useState(initialObservations)
-    const [isLoading, setIsLoading] = React.useState(false)
+    const [observations, setObservations] = React.useState<any[]>([])
+    const [totalObservations, setTotalObservations] = React.useState(0)
+    const [camaCountsByBloque, setCamaCountsByBloque] = React.useState<Record<string, { finca: string, bloque: string, count: number, area: number, areaProductiva: number }>>({})
+    const [isLoading, setIsLoading] = React.useState(true)
     const [isLoadingMore, setIsLoadingMore] = React.useState(false)
-    const [error, setError] = React.useState<string | null>(initialError)
+    const [error, setError] = React.useState<string | null>(null)
     const [viewMode, setViewMode] = React.useState<'cama' | 'bloque'>('bloque')
-    const [hasMoreData, setHasMoreData] = React.useState(initialObservations.length < totalObservations)
+    const [hasMoreData, setHasMoreData] = React.useState(false)
     const [tableFilters, setTableFilters] = React.useState<Record<string, string>>({})
     const [isExporting, setIsExporting] = React.useState(false)
+
+    // Load initial data
+    React.useEffect(() => {
+        async function loadInitialData() {
+            try {
+                // Fetch observations and cama counts in parallel
+                const [obsResponse, camaResponse] = await Promise.all([
+                    fetch('/api/observations/more?offset=0&limit=1000'),
+                    fetch('/api/cama-counts')
+                ])
+
+                if (!obsResponse.ok || !camaResponse.ok) {
+                    throw new Error('Failed to fetch initial data')
+                }
+
+                const obsResult = await obsResponse.json()
+                const camaResult = await camaResponse.json()
+
+                setObservations(obsResult.data || [])
+                setTotalObservations(obsResult.total || 0)
+                setHasMoreData((obsResult.data?.length || 0) < (obsResult.total || 0))
+                setCamaCountsByBloque(camaResult || {})
+            } catch (e) {
+                console.error("Error loading initial data:", e)
+                setError(e instanceof Error ? e.message : "Unknown error")
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        loadInitialData()
+    }, [])
+
 
     // Function to load more observations from the database
     const loadMoreObservations = React.useCallback(async () => {
@@ -855,6 +882,8 @@ export function DashboardContent({ initialObservations, totalObservations, initi
                             totalObservations={totalObservations}
                             loadedObservations={observations.length}
                             onFiltersChange={handleFiltersChange}
+                            viewMode={viewMode}
+                            rawObservations={observations}
                         />
                     </div>
                 )}

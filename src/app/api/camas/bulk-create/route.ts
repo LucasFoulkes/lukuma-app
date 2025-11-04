@@ -4,9 +4,9 @@ import { insertRow, getRowsByColumns, getTable } from '@/services/db'
 export async function POST(request: Request) {
     try {
         const body = await request.json()
-        const { bloqueId, variedadId, startNumber, count, avgLength } = body
+        const { bloqueId, variedadId, columna, startNumber, count, avgLength } = body
 
-        console.log('Creating camas:', { bloqueId, variedadId, startNumber, count, avgLength })
+        console.log('Creating camas:', { bloqueId, variedadId, columna, startNumber, count, avgLength })
 
         // If no variedad specified, find or create "Sin Asignar" variedad
         let finalVariedadId = variedadId
@@ -63,11 +63,20 @@ export async function POST(request: Request) {
 
         for (let i = 0; i < count; i++) {
             const camaNumber = startNumber + i
+            
+            // Calculate columna: if specified use it, otherwise use odd/even logic
+            let camaColumna = columna
+            if (camaColumna === null || camaColumna === undefined) {
+                // Auto: odd numbers go to column 1, even to column 2
+                camaColumna = camaNumber % 2 === 1 ? 1 : 2
+            }
+            
             const newCama = await insertRow('cama', {
                 nombre: camaNumber.toString(),
                 id_grupo: targetGrupo.id_grupo,
                 largo_metros: avgLength,
                 ancho_metros: null,
+                columna: camaColumna,
                 plantas_totales: null
             })
             createdCamas.push(newCama)

@@ -1,4 +1,4 @@
-import { Calendar, Home, Inbox, Search, Settings, Database, Map, TrendingUp } from "lucide-react"
+import { Calendar, Home, Inbox, Search, Settings, Database, Map } from "lucide-react"
 
 import {
     Sidebar,
@@ -17,11 +17,6 @@ const items = [
         title: "Tablero",
         url: "/",
         icon: Home,
-    },
-    {
-        title: "Predicción",
-        url: "/prediccion",
-        icon: TrendingUp,
     },
     {
         title: "Mapa",

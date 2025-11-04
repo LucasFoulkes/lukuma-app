@@ -317,6 +317,29 @@ export function BloqueMap({
                 console.log('Updated cama properties:', result)
             }
 
+            // Case 4: Column position changed (columna field in database)
+            if (editFormData.columna !== undefined && editFormData.columna !== firstCama.columna) {
+                console.log('Case 4: Updating cama columna in database')
+                const response = await fetch('/api/camas/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bloqueId,
+                        camaNames,
+                        updates: { columna: editFormData.columna }
+                    })
+                })
+
+                if (!response.ok) {
+                    const errorData = await response.json()
+                    console.error('API error response:', errorData)
+                    throw new Error(`Failed to update cama columna: ${errorData.error || response.statusText}`)
+                }
+                
+                const result = await response.json()
+                console.log('Updated cama columna:', result)
+            }
+
             console.log('All updates completed successfully')
             
             // Success - close edit mode and refresh
@@ -378,7 +401,12 @@ export function BloqueMap({
 
         // Enrich beds with computed fields
         const beds = sortedCamas.map((cama, i) => {
-            const isOdd = (i + 1) % 2 === 1
+            // Use database columna field if available, otherwise fall back to odd/even logic
+            // columna: 1 = left/odd, 2 = right/even, etc.
+            const columnFromDB = cama.columna ? parseInt(String(cama.columna)) : null
+            const defaultIsOdd = (i + 1) % 2 === 1
+            const isOdd = columnFromDB !== null ? (columnFromDB % 2 === 1) : defaultIsOdd
+            
             const length = cama.largo_metros || 36
             const estado = cama.grupo?.estado?.toLowerCase()
             const variety = cama.variedad?.nombre || 'Sin variedad'
@@ -443,6 +471,7 @@ export function BloqueMap({
                 grupoFechaSiembra: cama.grupo?.fecha_siembra || null,
                 grupoTipoPlanta: cama.grupo?.tipo_planta || null,
                 grupoPatron: cama.grupo?.patron || null,
+                columna: cama.columna || null,
                 isProductivo
             }
         })
@@ -504,7 +533,12 @@ export function BloqueMap({
                     const maxGrupoWidth = Math.max(...beds.map(b => p.textWidth(b.grupoLabel)))
                     
                     const maxLen = Math.max(...beds.map(b => b.length))
-                    const numRows = Math.ceil(beds.length / 2)
+                    
+                    // Count beds on each side to determine max rows needed
+                    const leftBeds = beds.filter(b => b.isOdd).length
+                    const rightBeds = beds.filter(b => !b.isOdd).length
+                    const numRows = Math.max(leftBeds, rightBeds, 1) // At least 1 row
+                    
                     const natW = (maxLen * cfg.scale + cfg.lenOff + cfg.grpOff + maxGrupoWidth + 10) * 2 + cfg.gap
                     const natH = cfg.bedH + (numRows - 1) * cfg.rowSp
 
@@ -539,9 +573,25 @@ export function BloqueMap({
                         maxY = Math.max(maxY, y + h)
                     }
 
+                    // Calculate row positions for each side independently
+                    const leftRowCounter = new Map<number, number>() // bed index -> row on left side
+                    const rightRowCounter = new Map<number, number>() // bed index -> row on right side
+                    let leftRow = 0
+                    let rightRow = 0
+                    
+                    beds.forEach((bed, i) => {
+                        if (bed.isOdd) {
+                            leftRowCounter.set(i, leftRow)
+                            leftRow++
+                        } else {
+                            rightRowCounter.set(i, rightRow)
+                            rightRow++
+                        }
+                    })
+
                     // Draw beds
                     beds.forEach((bed, i) => {
-                        const row = Math.floor(i / 2)
+                        const row = bed.isOdd ? (leftRowCounter.get(i) || 0) : (rightRowCounter.get(i) || 0)
                         const y = bedH / 2 + row * rowSp
                         const bedW = bed.length * scale
                         const x = bed.isOdd ? centerX - gap - bedW : centerX + gap
@@ -568,7 +618,7 @@ export function BloqueMap({
 
                         // Use blue overlay if selected, otherwise use variety color
                         const isSelected = selectedCamasRef.current.has(bed.nombre)
-                        const isHovered = hoveredCamaRef.current === bed.nombre
+                        const isHovered = hoveredCamaRef.current?.nombre === bed.nombre
                         let c
                         
                         if (isSelected) {
@@ -1103,6 +1153,10 @@ export function BloqueMap({
                                                     setEditFormData({})
                                                 } else {
                                                     setEditingGroupKey(groupKey)
+                                                    // Get column from database (columna field)
+                                                    const columnFromDB = firstCama.columna || null
+                                                    const currentColumna = columnFromDB || (parseInt(firstCama.nombre) % 2 === 1 ? 1 : 2)
+                                                    
                                                     setEditFormData({
                                                         variety: firstCama.variety,
                                                         grupoNombre: firstCama.grupoNombre,
@@ -1110,7 +1164,8 @@ export function BloqueMap({
                                                         grupoFechaSiembra: firstCama.grupoFechaSiembra,
                                                         grupoTipoPlanta: firstCama.grupoTipoPlanta,
                                                         grupoPatron: firstCama.grupoPatron,
-                                                        length: firstCama.length
+                                                        length: firstCama.length,
+                                                        columna: currentColumna
                                                     })
                                                 }
                                             }}
@@ -1239,6 +1294,35 @@ export function BloqueMap({
                                                                 placeholder="Largo (m)"
                                                                 className="h-8 flex-1"
                                                             />
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <label className="text-xs font-medium text-muted-foreground min-w-[80px]">
+                                                                Columna
+                                                            </label>
+                                                            <Select
+                                                                value={editFormData.columna?.toString() || 'auto'}
+                                                                onValueChange={(value) => {
+                                                                    setEditFormData({ 
+                                                                        ...editFormData, 
+                                                                        columna: value === 'auto' ? null : parseInt(value)
+                                                                    })
+                                                                }}
+                                                            >
+                                                                <SelectTrigger className="h-8 flex-1">
+                                                                    <SelectValue placeholder="Seleccionar columna" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="auto">
+                                                                        🔄 Automático (par/impar)
+                                                                    </SelectItem>
+                                                                    <SelectItem value="1">
+                                                                        ⬅️ Columna 1 (Izquierda)
+                                                                    </SelectItem>
+                                                                    <SelectItem value="2">
+                                                                        ➡️ Columna 2 (Derecha)
+                                                                    </SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
                                                         <div className="flex items-center gap-3">
                                                             <label className="text-xs font-medium text-muted-foreground min-w-[80px]">

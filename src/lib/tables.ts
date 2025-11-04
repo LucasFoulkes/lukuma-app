@@ -3,7 +3,7 @@ export const TABLES = {
     finca: ['nombre'],
     bloque: ['id_finca', 'nombre'],
     grupo_cama: ['id_bloque', 'id_variedad', 'fecha_siembra', 'estado', 'patron', 'tipo_planta'],
-    cama: ['id_grupo', 'nombre', 'largo_metros', 'ancho_metros'],
+    cama: ['id_grupo', 'nombre', 'largo_metros', 'ancho_metros', 'columna'],
     breeder: ['nombre'],
     variedad: ['id_breeder', 'nombre', 'color'],
     observacion: ['creado_en', 'id_cama', 'id_usuario', 'tipo_observacion', 'cantidad'],

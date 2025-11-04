@@ -37,6 +37,7 @@ export function BloquePageHeader({
     const [isSaving, setIsSaving] = useState(false)
     const [variedades, setVariedades] = useState<any[]>([])
     const [selectedVariedad, setSelectedVariedad] = useState<string>('')
+    const [selectedColumna, setSelectedColumna] = useState<string>('auto') // 'auto', '1', or '2'
 
     // Fetch variedades
     useEffect(() => {
@@ -76,6 +77,7 @@ export function BloquePageHeader({
                     body: JSON.stringify({
                         bloqueId: currentBloqueId,
                         variedadId: selectedVariedad ? parseInt(selectedVariedad) : null,
+                        columna: selectedColumna === 'auto' ? null : parseInt(selectedColumna),
                         startNumber: maxCamaNumber + 1,
                         count: diff,
                         avgLength: avgLength || 50 // Default to 50m if no camas exist
@@ -226,24 +228,49 @@ export function BloquePageHeader({
 
                         {/* Variedad selector - only shown when adding camas */}
                         {camaCount > camas.length && (
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Variedad para nuevas camas (opcional)</label>
-                                <Select value={selectedVariedad} onValueChange={setSelectedVariedad}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Sin asignar" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {variedades.map((v) => (
-                                            <SelectItem key={v.id_variedad} value={v.id_variedad.toString()}>
-                                                {v.nombre}
+                            <>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Variedad para nuevas camas (opcional)</label>
+                                    <Select value={selectedVariedad} onValueChange={setSelectedVariedad}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Sin asignar" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {variedades.map((v) => (
+                                                <SelectItem key={v.id_variedad} value={v.id_variedad.toString()}>
+                                                    {v.nombre}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                        Si no se selecciona, se usará "Sin Asignar"
+                                    </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Columna para nuevas camas</label>
+                                    <Select value={selectedColumna} onValueChange={setSelectedColumna}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="auto">
+                                                🔄 Automático (par/impar)
                                             </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    Si no se selecciona, se usará "Sin Asignar"
-                                </p>
-                            </div>
+                                            <SelectItem value="1">
+                                                ⬅️ Columna 1 (Izquierda)
+                                            </SelectItem>
+                                            <SelectItem value="2">
+                                                ➡️ Columna 2 (Derecha)
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                        Controla en qué lado aparecerán las nuevas camas
+                                    </p>
+                                </div>
+                            </>
                         )}
 
                         {/* Average length info */}

@@ -1,36 +1,51 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { getTable } from "@/services/db"
 import { DataTable } from "@/components/data-table"
 import { getColumnsForTable } from "@/lib/tables"
 import { TableSelector } from "@/components/table-selector"
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ table?: string }>
-}) {
-  const params = await searchParams
-  let error = null
-  let table = []
-  const tableName = params.table || 'finca'
+export default function Home() {
+  const searchParams = useSearchParams()
+  const tableName = searchParams.get('table') || 'finca'
+  
+  const [data, setData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  try {
-    table = await getTable(tableName)
-  } catch (e) {
-    error = e instanceof Error ? e.message : 'Unknown error'
-  }
+  useEffect(() => {
+    async function loadTable() {
+      setLoading(true)
+      setError(null)
+      
+      try {
+        const table = await getTable(tableName)
+        
+        // Filter and order columns based on table config
+        let filteredData = table
+        if (table.length > 0) {
+          const columns = getColumnsForTable(tableName, Object.keys(table[0]))
+          filteredData = table.map(row => {
+            const filtered: Record<string, any> = {}
+            columns.forEach(col => {
+              filtered[col] = row[col]
+            })
+            return filtered
+          })
+        }
+        
+        setData(filteredData)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  // Filter and order columns based on table config
-  let filteredData = table
-  if (table.length > 0) {
-    const columns = getColumnsForTable(tableName, Object.keys(table[0]))
-    filteredData = table.map(row => {
-      const filtered: Record<string, any> = {}
-      columns.forEach(col => {
-        filtered[col] = row[col]
-      })
-      return filtered
-    })
-  }
+    loadTable()
+  }, [tableName])
 
   return (
     <div className="flex-1 flex flex-col p-8 overflow-hidden">
@@ -46,10 +61,14 @@ export default async function Home({
           <p className="font-semibold">Error loading table:</p>
           <p>{error}</p>
         </div>
+      ) : loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-muted-foreground">Cargando datos...</div>
+        </div>
       ) : (
         <div className="flex-1 min-h-0">
           <DataTable
-            data={filteredData}
+            data={data}
           />
         </div>
       )}

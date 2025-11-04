@@ -9,6 +9,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Skeleton } from "@/components/ui/skeleton"
-import { CalendarIcon, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { CalendarIcon, Check, ChevronsUpDown, ArrowUpDown, ArrowUp, ArrowDown, Pencil } from "lucide-react"
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { type DateRange } from "react-day-picker"
@@ -32,6 +33,8 @@ interface ObservationTableProps {
     totalObservations?: number
     loadedObservations?: number
     onFiltersChange?: (filters: Record<string, string>) => void
+    viewMode?: 'cama' | 'bloque'
+    rawObservations?: any[] // Raw ungrouped observations for drill-down
 }
 
 const ITEMS_PER_PAGE = 100 // Show 100 rows at a time
@@ -69,13 +72,30 @@ export function ObservationTable({
     isLoadingMore = false,
     totalObservations = 0,
     loadedObservations = 0,
-    onFiltersChange
+    onFiltersChange,
+    viewMode = 'cama',
+    rawObservations = []
 }: ObservationTableProps) {
     const [dateRange, setDateRange] = React.useState<DateRange | undefined>(initialDateRange)
     const [visibleRows, setVisibleRows] = React.useState(ITEMS_PER_PAGE)
     const scrollContainerRef = React.useRef<HTMLDivElement>(null)
     const loadingRef = React.useRef(false)
     const dbLoadingRef = React.useRef(false)
+    
+    // Dialog state for bloque drill-down
+    const [selectedBloqueData, setSelectedBloqueData] = React.useState<any[] | null>(null)
+    const [dialogOpen, setDialogOpen] = React.useState(false)
+    const [selectedBloqueInfo, setSelectedBloqueInfo] = React.useState<{finca: string, bloque: string, fecha: string} | null>(null)
+    
+    // Edit dialog state
+    const [editDialogOpen, setEditDialogOpen] = React.useState(false)
+    const [editingCama, setEditingCama] = React.useState<{camaName: string, finca: string, bloque: string} | null>(null)
+    const [isEditingAll, setIsEditingAll] = React.useState(false)
+    const [fincasList, setFincasList] = React.useState<string[]>([])
+    const [bloquesList, setBloquesList] = React.useState<{finca: string, bloque: string}[]>([])
+    const [selectedFinca, setSelectedFinca] = React.useState<string>('')
+    const [selectedBloque, setSelectedBloque] = React.useState<string>('')
+    const [isUpdating, setIsUpdating] = React.useState(false)
     
     // Filter state for combobox columns
     const [filters, setFilters] = React.useState<Record<string, string>>({})
@@ -303,7 +323,356 @@ export function ObservationTable({
         return String(value)
     }
 
+    // Handle row click in bloque mode
+    const handleRowClick = (row: Record<string, any>) => {
+        if (viewMode !== 'bloque' || !rawObservations || rawObservations.length === 0) return
+        
+        // Store bloque info for dialog header
+        setSelectedBloqueInfo({
+            finca: row.Finca,
+            bloque: row.Bloque,
+            fecha: row.Fecha
+        })
+        
+        // Filter raw observations for this specific bloque
+        const bloqueObservations = rawObservations.filter(obs => 
+            obs.cama?.grupo_cama?.bloque?.nombre === row.Bloque &&
+            obs.cama?.grupo_cama?.bloque?.finca?.nombre === row.Finca
+        )
+        
+        // Aggregate by cama (same logic as dashboard-content.tsx)
+        const camaMap = new Map<string, any>()
+        
+        bloqueObservations.forEach((obs: any) => {
+            const camaId = obs.id_cama
+            if (!camaId) return
+            
+            if (!camaMap.has(camaId)) {
+                camaMap.set(camaId, {
+                    cama_nombre: obs.cama?.nombre || '',
+                    variedad_nombre: obs.cama?.grupo_cama?.variedad?.nombre || '',
+                    usuario_nombre: obs.usuario ? `${obs.usuario.nombres} ${obs.usuario.apellidos}` : '',
+                    observation_count: 0,
+                    observaciones: {},
+                    first_observation: null as Date | null,
+                    last_observation: null as Date | null,
+                    largo_metros: obs.cama?.largo_metros || 0,
+                    ancho_metros: obs.cama?.ancho_metros || 0
+                })
+            }
+            
+            const camaData = camaMap.get(camaId)!
+            camaData.observation_count++
+            
+            const tipo = obs.tipo_observacion
+            if (tipo) {
+                camaData.observaciones[tipo] = (camaData.observaciones[tipo] || 0) + (obs.cantidad || 0)
+            }
+            
+            const obsDate = new Date(obs.creado_en)
+            if (!camaData.first_observation || obsDate < camaData.first_observation) {
+                camaData.first_observation = obsDate
+            }
+            if (!camaData.last_observation || obsDate > camaData.last_observation) {
+                camaData.last_observation = obsDate
+            }
+        })
+        
+        // Convert to table rows
+        const aggregatedRows = Array.from(camaMap.values()).map(cama => {
+            let timeSpan = 0
+            let timeSpanDisplay = '—'
+            if (cama.first_observation && cama.last_observation) {
+                const diffMs = cama.last_observation.getTime() - cama.first_observation.getTime()
+                timeSpan = diffMs / (1000 * 60)
+                timeSpanDisplay = `${timeSpan.toFixed(2)} min`
+            }
+            
+            const largoMetros = cama.largo_metros || 0
+            const anchoMetros = cama.ancho_metros || 0
+            const areaCama = largoMetros * anchoMetros
+            const obsPerMetro = areaCama > 0 ? cama.observation_count / areaCama : 0
+            const timePerMetro = areaCama > 0 && timeSpan > 0 ? timeSpan / areaCama : 0
+            
+            return {
+                'Cama': cama.cama_nombre,
+                'Variedad': cama.variedad_nombre,
+                'Área (m²)': areaCama.toFixed(2),
+                'Usuario': cama.usuario_nombre,
+                'Observaciones': cama.observation_count,
+                'Obs/m²': obsPerMetro.toFixed(2),
+                'Tiempo Total': timeSpanDisplay,
+                'Tiempo/m²': timePerMetro > 0 ? `${timePerMetro.toFixed(2)} min` : '—',
+                ...cama.observaciones
+            }
+        })
+        
+        setSelectedBloqueData(aggregatedRows)
+        setDialogOpen(true)
+    }
+    
+    // Load fincas and bloques list for edit dialog
+    React.useEffect(() => {
+        const loadData = async () => {
+            try {
+                const response = await fetch('/api/bloques')
+                if (response.ok) {
+                    const data = await response.json()
+                    setBloquesList(data)
+                    
+                    // Extract unique fincas
+                    const uniqueFincas = [...new Set(data.map((b: any) => b.finca))] as string[]
+                    setFincasList(uniqueFincas)
+                }
+            } catch (error) {
+                console.error('Error loading data:', error)
+            }
+        }
+        loadData()
+    }, [])
+    
+    // Handle edit single cama observations
+    const handleEditCama = (camaName: string) => {
+        if (!selectedBloqueInfo) return
+        setEditingCama({
+            camaName,
+            finca: selectedBloqueInfo.finca,
+            bloque: selectedBloqueInfo.bloque
+        })
+        setIsEditingAll(false)
+        setEditDialogOpen(true)
+    }
+    
+    // Handle edit all bloque observations
+    const handleEditAll = () => {
+        if (!selectedBloqueInfo) return
+        setIsEditingAll(true)
+        setSelectedFinca(selectedBloqueInfo.finca)
+        setSelectedBloque(selectedBloqueInfo.bloque)
+        setEditDialogOpen(true)
+    }
+    
+    // Update observations location
+    const handleUpdateLocation = async () => {
+        if (!selectedFinca || !selectedBloque) return
+        
+        setIsUpdating(true)
+        
+        try {
+            const response = await fetch('/api/observations/update-location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    isEditingAll,
+                    editingCama,
+                    selectedBloqueInfo,
+                    newFinca: selectedFinca,
+                    newBloque: selectedBloque
+                })
+            })
+            
+            if (response.ok) {
+                // Refresh data
+                setEditDialogOpen(false)
+                setDialogOpen(false)
+                alert('Ubicación actualizada correctamente')
+                window.location.reload()
+            } else {
+                alert('Error al actualizar ubicación')
+            }
+        } catch (error) {
+            console.error('Error updating location:', error)
+            alert('Error al actualizar ubicación')
+        } finally {
+            setIsUpdating(false)
+        }
+    }
+
     return (
+        <>
+            {/* Edit Location Dialog */}
+            <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {isEditingAll ? 'Cambiar Ubicación de Todo el Bloque' : 'Cambiar Ubicación de Cama'}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">
+                                {isEditingAll 
+                                    ? `Cambiar todas las observaciones del bloque ${selectedBloqueInfo?.bloque}`
+                                    : `Cambiar observaciones de la cama ${editingCama?.camaName}`
+                                }
+                            </p>
+                            
+                            <div className="space-y-2">
+                                <p className="text-sm font-medium">Nueva Finca:</p>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-between">
+                                            {selectedFinca || 'Seleccionar finca...'}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-full p-0">
+                                        <Command>
+                                            <CommandInput placeholder="Buscar finca..." />
+                                            <CommandEmpty>No se encontró la finca</CommandEmpty>
+                                            <CommandList>
+                                                <CommandGroup>
+                                                    {fincasList.map((finca) => (
+                                                        <CommandItem
+                                                            key={finca}
+                                                            value={finca}
+                                                            onSelect={() => {
+                                                                setSelectedFinca(finca)
+                                                                setSelectedBloque('') // Reset bloque when finca changes
+                                                            }}
+                                                        >
+                                                            <Check
+                                                                className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    selectedFinca === finca ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                            />
+                                                            {finca}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <p className="text-sm font-medium">Nuevo Bloque:</p>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button 
+                                            variant="outline" 
+                                            className="w-full justify-between"
+                                            disabled={!selectedFinca}
+                                        >
+                                            {selectedBloque || 'Seleccionar bloque...'}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-full p-0">
+                                        <Command>
+                                            <CommandInput placeholder="Buscar bloque..." />
+                                            <CommandEmpty>No se encontró el bloque</CommandEmpty>
+                                            <CommandList>
+                                                <CommandGroup>
+                                                    {bloquesList
+                                                        .filter(b => b.finca === selectedFinca)
+                                                        .map((bloque) => (
+                                                            <CommandItem
+                                                                key={bloque.bloque}
+                                                                value={bloque.bloque}
+                                                                onSelect={() => setSelectedBloque(bloque.bloque)}
+                                                            >
+                                                                <Check
+                                                                    className={cn(
+                                                                        "mr-2 h-4 w-4",
+                                                                        selectedBloque === bloque.bloque ? "opacity-100" : "opacity-0"
+                                                                    )}
+                                                                />
+                                                                {bloque.bloque}
+                                                            </CommandItem>
+                                                        ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                        <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleUpdateLocation} disabled={!selectedFinca || !selectedBloque || isUpdating}>
+                            {isUpdating ? 'Actualizando...' : 'Actualizar'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+            
+            {/* Dialog for bloque drill-down */}
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="min-w-[90vw] max-w-[98vw] max-h-[90vh] p-0 gap-0">
+                    <DialogHeader className="px-6 pt-6 pb-4 flex flex-row items-center justify-between">
+                        <DialogTitle>
+                            {selectedBloqueInfo ? (
+                                <div className="flex flex-col gap-1">
+                                    <span>Observaciones por Cama</span>
+                                    <span className="text-sm font-normal text-muted-foreground">
+                                        {selectedBloqueInfo.finca} - {selectedBloqueInfo.bloque} ({selectedBloqueInfo.fecha})
+                                    </span>
+                                </div>
+                            ) : (
+                                'Observaciones por Cama'
+                            )}
+                        </DialogTitle>
+                        <Button onClick={handleEditAll} size="sm" variant="outline">
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Cambiar Ubicación del Bloque
+                        </Button>
+                    </DialogHeader>
+                    <ScrollArea className="max-h-[calc(90vh-100px)] px-6 pb-6">
+                        {selectedBloqueData && selectedBloqueData.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        {Object.keys(selectedBloqueData[0]).map((header) => (
+                                            <TableHead key={header} className="whitespace-nowrap px-4">
+                                                {header}
+                                            </TableHead>
+                                        ))}
+                                        <TableHead className="whitespace-nowrap px-4">Acciones</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {selectedBloqueData.map((row, idx) => (
+                                        <TableRow key={idx}>
+                                            {Object.entries(row).map(([key, value], cellIdx) => (
+                                                <TableCell key={cellIdx} className="whitespace-nowrap px-4">
+                                                    {key === 'Usuario' && value && typeof value === 'string' ? (
+                                                        <Badge className={`${getUserColor(value)} text-white`}>
+                                                            {value}
+                                                        </Badge>
+                                                    ) : (
+                                                        value?.toString() || '—'
+                                                    )}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className="whitespace-nowrap px-4">
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => handleEditCama(row.Cama)}
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                                No hay observaciones para mostrar
+                            </div>
+                        )}
+                        <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
+                </DialogContent>
+            </Dialog>
+
         <div className="h-full flex flex-col" ref={scrollContainerRef}>
             <ScrollArea className="flex-1 h-0">
                 <div className="min-w-max">
@@ -480,7 +849,11 @@ export function ObservationTable({
                             {filteredAndSortedData && filteredAndSortedData.length > 0 ? (
                                 <>
                                     {filteredAndSortedData.slice(0, visibleRows).map((row, rowIndex) => (
-                                        <TableRow key={rowIndex}>
+                                        <TableRow 
+                                            key={rowIndex}
+                                            onClick={() => handleRowClick(row)}
+                                            className={viewMode === 'bloque' ? 'cursor-pointer hover:bg-muted/50' : ''}
+                                        >
                                             {columns.map((column) => (
                                                 <TableCell key={`${rowIndex}-${column}`}>
                                                     {formatValue(column, row[column])}
@@ -527,5 +900,6 @@ export function ObservationTable({
                 <ScrollBar orientation="horizontal" />
             </ScrollArea>
         </div>
+        </>
     )
 }

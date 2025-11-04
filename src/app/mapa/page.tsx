@@ -54,7 +54,8 @@ export default function MapaPage() {
                 const bloqueVariedades = new Map<number, Set<string>>()
                 grupos.forEach((grupo: any) => {
                     const variedadName = variedadMap.get(grupo.id_variedad)
-                    if (variedadName) {
+                    // Only add if variedad exists and is not "Sin Asignar"
+                    if (variedadName && variedadName !== 'Sin Asignar') {
                         if (!bloqueVariedades.has(grupo.id_bloque)) {
                             bloqueVariedades.set(grupo.id_bloque, new Set())
                         }
