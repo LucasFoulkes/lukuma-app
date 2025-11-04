@@ -20,10 +20,10 @@ interface BloqueMapProps {
     disableInteraction?: boolean
 }
 
-export function BloqueMap({ 
-    bloqueId, 
-    bloqueName, 
-    fincaName, 
+export function BloqueMap({
+    bloqueId,
+    bloqueName,
+    fincaName,
     camas = [],
     grupos = [],
     settings = DEFAULT_MAP_SETTINGS,
@@ -41,7 +41,7 @@ export function BloqueMap({
     const [tiposPlantas, setTiposPlantas] = useState<any[]>([])
     const [patrones, setPatrones] = useState<any[]>([])
     const [variedades, setVariedades] = useState<any[]>([])
-    
+
     // Keep disableInteraction ref in sync
     useEffect(() => {
         disableInteractionRef.current = disableInteraction
@@ -63,7 +63,7 @@ export function BloqueMap({
         }
         fetchEstados()
     }, [])
-    
+
     // Fetch tipos de planta
     useEffect(() => {
         const fetchTiposPlantas = async () => {
@@ -80,7 +80,7 @@ export function BloqueMap({
         }
         fetchTiposPlantas()
     }, [])
-    
+
     // Fetch patrones
     useEffect(() => {
         const fetchPatrones = async () => {
@@ -97,7 +97,7 @@ export function BloqueMap({
         }
         fetchPatrones()
     }, [])
-    
+
     // Fetch variedades
     useEffect(() => {
         const fetchVariedades = async () => {
@@ -119,17 +119,17 @@ export function BloqueMap({
     const [isSaving, setIsSaving] = useState(false)
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
     const [pendingSave, setPendingSave] = useState<{ groupKey: string, camas: any[] } | null>(null)
-    
+
     // Keep ref in sync with state
     useEffect(() => {
         showSelectionDialogRef.current = showSelectionDialog
     }, [showSelectionDialog])
-    
+
     // Debug logging
     useEffect(() => {
         console.log('showSelectionDialog changed:', showSelectionDialog, 'camas:', selectionDialogCamas.length)
     }, [showSelectionDialog, selectionDialogCamas])
-    
+
     const [hoveredCama, setHoveredCama] = useState<{
         nombre: string
         variedad: string
@@ -153,34 +153,34 @@ export function BloqueMap({
         length: number
     } | null>(null)
     const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
-    
+
     // Track mouse position directly from DOM events
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
             setMousePos({ x: e.clientX, y: e.clientY })
         }
-        
+
         const handleMouseLeave = () => {
             setMousePos(null)
         }
-        
+
         const container = containerRef.current
         if (container) {
             container.addEventListener('mousemove', handleMouseMove)
             container.addEventListener('mouseleave', handleMouseLeave)
-            
+
             return () => {
                 container.removeEventListener('mousemove', handleMouseMove)
                 container.removeEventListener('mouseleave', handleMouseLeave)
             }
         }
     }, [])
-    
+
     // Keep refs in sync with state
     useEffect(() => {
         selectedCamasRef.current = selectedCamas
     }, [selectedCamas])
-    
+
     useEffect(() => {
         hoveredCamaRef.current = hoveredCama
     }, [hoveredCama])
@@ -194,10 +194,10 @@ export function BloqueMap({
     // Actual save handler (called after confirmation)
     const handleConfirmSave = async () => {
         if (!pendingSave) return
-        
+
         setIsSaving(true)
         setShowConfirmDialog(false)
-        
+
         try {
             const { groupKey, camas: camasInGroup } = pendingSave
             const camaNames = camasInGroup.map(c => c.nombre)
@@ -212,9 +212,9 @@ export function BloqueMap({
                     throw new Error(`Grupo ${editFormData.grupoId} no existe en este bloque`)
                 }
 
-                console.log('Case 1: Moving camas to grupo', { 
-                    bloqueId, 
-                    camaNames, 
+                console.log('Case 1: Moving camas to grupo', {
+                    bloqueId,
+                    camaNames,
                     newGrupoId: editFormData.grupoId,
                     oldGrupoId: firstCama.grupoId,
                     targetGrupoExists: !!targetGrupo,
@@ -235,17 +235,17 @@ export function BloqueMap({
                     console.error('API error response:', errorData)
                     throw new Error(`Failed to move camas to grupo: ${errorData.error || response.statusText}`)
                 }
-                
+
                 const result = await response.json()
                 console.log('Moved camas to grupo:', result)
-                
+
                 // Refresh the page data
                 window.location.reload()
                 return
             }
 
             // Check if grupo properties changed
-            const grupoPropsChanged = 
+            const grupoPropsChanged =
                 editFormData.variety !== firstCama.variety ||
                 editFormData.grupoEstado !== firstCama.grupoEstado ||
                 editFormData.grupoTipoPlanta !== firstCama.grupoTipoPlanta ||
@@ -263,14 +263,27 @@ export function BloqueMap({
             // Case 2: Grupo properties changed - create new grupo and assign camas
             if (grupoPropsChanged) {
                 console.log('Case 2: Creating new grupo')
-                const varietyId = variedades.find(v => (v.nombre || v.codigo) === editFormData.variety)?.id
+                console.log('Looking for variety:', editFormData.variety)
+                console.log('Available variedades:', variedades)
+
+                const matchedVariedad = variedades.find(v => {
+                    const matchName = v.nombre === editFormData.variety
+                    const matchCodigo = v.codigo === editFormData.variety
+                    console.log(`Checking variedad: nombre="${v.nombre}" (match: ${matchName}), codigo="${v.codigo}" (match: ${matchCodigo})`)
+                    return matchName || matchCodigo
+                })
+
+                const varietyId = matchedVariedad?.id_variedad || matchedVariedad?.id
+
+                if (!varietyId) {
+                    console.error('Variedad not found! Selected:', editFormData.variety)
+                    console.error('Available variedades:', variedades.map(v => `${v.id_variedad || v.id}: ${v.nombre || v.codigo}`))
+                    throw new Error(`Variedad "${editFormData.variety}" no encontrada en la lista de variedades disponibles`)
+                }
 
                 const grupoData = {
                     id_variedad: varietyId,
-                    estado: editFormData.grupoEstado,
-                    tipo_planta: editFormData.grupoTipoPlanta,
-                    patron: editFormData.grupoPatron,
-                    fecha_siembra: editFormData.grupoFechaSiembra
+                    estado: editFormData.grupoEstado
                 }
                 console.log('Creating grupo with data:', grupoData)
 
@@ -289,7 +302,7 @@ export function BloqueMap({
                     console.error('API error response:', errorData)
                     throw new Error(`Failed to create grupo: ${errorData.error || response.statusText}`)
                 }
-                
+
                 const result = await response.json()
                 console.log('Created new grupo and assigned camas:', result)
             }
@@ -312,7 +325,7 @@ export function BloqueMap({
                     console.error('API error response:', errorData)
                     throw new Error(`Failed to update cama properties: ${errorData.error || response.statusText}`)
                 }
-                
+
                 const result = await response.json()
                 console.log('Updated cama properties:', result)
             }
@@ -335,13 +348,13 @@ export function BloqueMap({
                     console.error('API error response:', errorData)
                     throw new Error(`Failed to update cama columna: ${errorData.error || response.statusText}`)
                 }
-                
+
                 const result = await response.json()
                 console.log('Updated cama columna:', result)
             }
 
             console.log('All updates completed successfully')
-            
+
             // Success - close edit mode and refresh
             setEditingGroupKey(null)
             setEditFormData({})
@@ -359,14 +372,14 @@ export function BloqueMap({
         }
     }
 
-    const { 
-        showLabels, 
-        compactView, 
-        noGap, 
-        whiteCenter, 
-        showVariedadLabels, 
-        coloredCamaLabels, 
-        camaLabelInterval 
+    const {
+        showLabels,
+        compactView,
+        noGap,
+        whiteCenter,
+        showVariedadLabels,
+        coloredCamaLabels,
+        camaLabelInterval
     } = settings
 
     useEffect(() => {
@@ -380,14 +393,14 @@ export function BloqueMap({
         )
 
         const grupoMaxLengths = new Map<string, number>()
-        
+
         // Group by color to count how many grupos per color (for shade variation)
         const colorGrupos = new Map<string, string[]>() // color -> grupoKeys
         sortedCamas.forEach((cama) => {
             const estado = cama.grupo?.estado?.toLowerCase()
             const colorName = cama.variedad?.color?.toLowerCase() || 'default'
             const grupoKey = `g_${cama.grupo?.id_grupo}` // Always use actual grupo ID
-            
+
             if (estado !== 'vegetativo') { // Only track productivo grupos
                 if (!colorGrupos.has(colorName)) {
                     colorGrupos.set(colorName, [])
@@ -399,19 +412,77 @@ export function BloqueMap({
             }
         })
 
-        // Enrich beds with computed fields
-        const beds = sortedCamas.map((cama, i) => {
-            // Use database columna field if available, otherwise fall back to odd/even logic
-            // columna: 1 = left/odd, 2 = right/even, etc.
+        // First pass: assign positions sequentially while respecting columna preferences
+        const positionedCamas: Array<{ cama: any, row: number, isLeft: boolean }> = []
+        let currentRow = 0
+        let rowHasLeft = false
+        let rowHasRight = false
+
+        sortedCamas.forEach((cama, index) => {
             const columnFromDB = cama.columna ? parseInt(String(cama.columna)) : null
-            const defaultIsOdd = (i + 1) % 2 === 1
-            const isOdd = columnFromDB !== null ? (columnFromDB % 2 === 1) : defaultIsOdd
-            
+            const mustBeLeft = columnFromDB === 1
+            const mustBeRight = columnFromDB === 2
+
+            if (mustBeRight) {
+                // This cama MUST go on the right
+                // If this row already has right filled, move to next row
+                if (rowHasRight) {
+                    currentRow++
+                    rowHasLeft = false
+                    rowHasRight = false
+                }
+                // Place on right (leaves left side of this row empty if it wasn't filled)
+                positionedCamas.push({ cama, row: currentRow, isLeft: false })
+                // Move to next row (this row is done - left is either empty or was already filled)
+                currentRow++
+                rowHasLeft = false
+                rowHasRight = false
+            } else if (mustBeLeft) {
+                // This cama MUST go on the left
+                // If this row already has left filled, move to next row
+                if (rowHasLeft) {
+                    currentRow++
+                    rowHasLeft = false
+                    rowHasRight = false
+                }
+                // Place on left (leaves right side of this row empty if it wasn't filled)
+                positionedCamas.push({ cama, row: currentRow, isLeft: true })
+                // Move to next row (this row is done - right is either empty or was already filled)
+                currentRow++
+                rowHasLeft = false
+                rowHasRight = false
+            } else {
+                // No preference - natural flow: fill left first, then right
+                if (!rowHasLeft) {
+                    positionedCamas.push({ cama, row: currentRow, isLeft: true })
+                    rowHasLeft = true
+                } else if (!rowHasRight) {
+                    positionedCamas.push({ cama, row: currentRow, isLeft: false })
+                    rowHasRight = true
+                    // Both sides filled, move to next row
+                    currentRow++
+                    rowHasLeft = false
+                    rowHasRight = false
+                } else {
+                    // Should never happen
+                    currentRow++
+                    positionedCamas.push({ cama, row: currentRow, isLeft: true })
+                    rowHasLeft = true
+                    rowHasRight = false
+                }
+            }
+        })
+
+        // Enrich beds with computed fields
+        const beds = positionedCamas.map(({ cama, row, isLeft }, i) => {
+            const isOdd = isLeft
+
             const length = cama.largo_metros || 36
             const estado = cama.grupo?.estado?.toLowerCase()
             const variety = cama.variedad?.nombre || 'Sin variedad'
             const isProductivo = estado === 'productivo'
             const grupoKey = `g_${cama.grupo?.id_grupo}` // Always use actual grupo ID
+
             const sideKey = `${grupoKey}_${isOdd ? 'L' : 'R'}`
 
             if (cama.grupo?.id_grupo || isProductivo) {
@@ -420,14 +491,14 @@ export function BloqueMap({
 
             const colorName = cama.variedad?.color?.toLowerCase()
             const baseVarietyColor = estado === 'vegetativo' ? '#555555' : (COLORS[colorName] || '#999999')
-            
+
             // Calculate modified color for this grupo (if multiple grupos share same color in THIS bloque)
             const gruposForColor = colorGrupos.get(colorName || 'default') || []
             const grupoIndex = gruposForColor.indexOf(grupoKey)
             const totalGrupos = gruposForColor.length
-            
+
             console.log(`Cama ${cama.nombre}: variety="${variety}", grupoKey="${grupoKey}", color="${colorName}", totalGrupos=${totalGrupos}, grupoIndex=${grupoIndex}, baseColor=${baseVarietyColor}`)
-            
+
             let finalColor = baseVarietyColor
             if (totalGrupos > 1 && estado !== 'vegetativo') {
                 // Convert hex to RGB
@@ -435,7 +506,7 @@ export function BloqueMap({
                 const r = parseInt(hex.substr(0, 2), 16)
                 const g = parseInt(hex.substr(2, 2), 16)
                 const b = parseInt(hex.substr(4, 2), 16)
-                
+
                 // Blend with white (lighter) or black (darker) by 3%
                 let newR, newG, newB
                 if (grupoIndex % 2 === 0) {
@@ -449,15 +520,16 @@ export function BloqueMap({
                     newG = Math.round(g * 0.97)
                     newB = Math.round(b * 0.97)
                 }
-                
+
                 finalColor = `rgb(${newR}, ${newG}, ${newB})`
                 console.log(`  -> Modified to ${finalColor}`)
             }
-            
+
             return {
                 nombre: cama.nombre,
                 index: i,
                 isOdd,
+                row, // Include the calculated row position
                 length,
                 variety,
                 varietyColor: finalColor,
@@ -477,12 +549,12 @@ export function BloqueMap({
         })
 
         // Adjust grupo offset based on whether length labels are shown
-        const cfg = { 
-            bedH: 10, 
+        const cfg = {
+            bedH: 10,
             rowSp: compactView ? 10 : 14,  // Reduced spacing in compact view (just bedH, no extra gap)
-            scale: 8, 
+            scale: 8,
             gap: noGap ? 0 : 10,  // No horizontal gap when noGap is true
-            lenOff: 30, 
+            lenOff: 30,
             grpOff: showLabels ? 80 : 40  // Closer when length labels are hidden
         }
 
@@ -494,8 +566,8 @@ export function BloqueMap({
             const sketch = (p: any) => {
                 let timeout: any = null
                 let bedBounds: Array<{
-                    nombre: string, 
-                    variety: string, 
+                    nombre: string,
+                    variety: string,
                     grupoLabel: string,
                     grupoId: number | null,
                     grupoNombre: string,
@@ -504,9 +576,9 @@ export function BloqueMap({
                     grupoTipoPlanta: string | null,
                     grupoPatron: string | null,
                     length: number,
-                    x: number, 
-                    y: number, 
-                    w: number, 
+                    x: number,
+                    y: number,
+                    w: number,
                     h: number
                 }> = []
                 let transformScale = 1
@@ -523,7 +595,7 @@ export function BloqueMap({
 
                 p.draw = () => {
                     if (!beds.length) return
-                    
+
                     // Reset bed bounds for this frame
                     bedBounds = []
 
@@ -531,14 +603,14 @@ export function BloqueMap({
                     p.textSize(20)
                     p.textStyle(p.BOLD)
                     const maxGrupoWidth = Math.max(...beds.map(b => p.textWidth(b.grupoLabel)))
-                    
+
                     const maxLen = Math.max(...beds.map(b => b.length))
-                    
+
                     // Count beds on each side to determine max rows needed
                     const leftBeds = beds.filter(b => b.isOdd).length
                     const rightBeds = beds.filter(b => !b.isOdd).length
                     const numRows = Math.max(leftBeds, rightBeds, 1) // At least 1 row
-                    
+
                     const natW = (maxLen * cfg.scale + cfg.lenOff + cfg.grpOff + maxGrupoWidth + 10) * 2 + cfg.gap
                     const natH = cfg.bedH + (numRows - 1) * cfg.rowSp
 
@@ -573,31 +645,15 @@ export function BloqueMap({
                         maxY = Math.max(maxY, y + h)
                     }
 
-                    // Calculate row positions for each side independently
-                    const leftRowCounter = new Map<number, number>() // bed index -> row on left side
-                    const rightRowCounter = new Map<number, number>() // bed index -> row on right side
-                    let leftRow = 0
-                    let rightRow = 0
-                    
-                    beds.forEach((bed, i) => {
-                        if (bed.isOdd) {
-                            leftRowCounter.set(i, leftRow)
-                            leftRow++
-                        } else {
-                            rightRowCounter.set(i, rightRow)
-                            rightRow++
-                        }
-                    })
-
                     // Draw beds
                     beds.forEach((bed, i) => {
-                        const row = bed.isOdd ? (leftRowCounter.get(i) || 0) : (rightRowCounter.get(i) || 0)
+                        const row = bed.row // Use the row calculated in positioning logic
                         const y = bedH / 2 + row * rowSp
                         const bedW = bed.length * scale
                         const x = bed.isOdd ? centerX - gap - bedW : centerX + gap
 
                         track(x, y - bedH / 2, bedW, bedH)
-                        
+
                         // Store bed bounds for click detection
                         bedBounds.push({
                             nombre: bed.nombre,
@@ -620,7 +676,7 @@ export function BloqueMap({
                         const isSelected = selectedCamasRef.current.has(bed.nombre)
                         const isHovered = hoveredCamaRef.current?.nombre === bed.nombre
                         let c
-                        
+
                         if (isSelected) {
                             // Blend variety color with semi-transparent blue (50/50 mix)
                             const baseColor = p.color(bed.varietyColor)
@@ -632,7 +688,7 @@ export function BloqueMap({
                         } else {
                             c = p.color(bed.varietyColor)
                         }
-                        
+
                         // Intensify color on hover by adding white overlay (screen blend effect)
                         if (isHovered && !isSelected) {
                             const r = p.red(c)
@@ -644,7 +700,7 @@ export function BloqueMap({
                             const brightB = b + (255 - b) * 0.3
                             c = p.color(brightR, brightG, brightB)
                         }
-                        
+
                         p.noStroke()
                         p.fill(c)
                         p.rect(x, y - bedH / 2, bedW, bedH)
@@ -653,14 +709,14 @@ export function BloqueMap({
                         const r = p.red(c)
                         const g = p.green(c)
                         const b = p.blue(c)
-                        
+
                         // Calculate relative luminance (WCAG standard, 0-1 scale)
                         const toLinear = (val: number) => {
                             const v = val / 255
                             return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
                         }
                         const relativeLuminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
-                        
+
                         // Target: consistent subtle contrast across all luminance levels
                         let dotR, dotG, dotB
                         if (relativeLuminance > 0.5) {
@@ -676,9 +732,9 @@ export function BloqueMap({
                             dotG = g + (255 - g) * factor
                             dotB = b + (255 - b) * factor
                         }
-                        
+
                         p.fill(dotR, dotG, dotB)
-                        
+
                         // When no gap, draw vertical line at start instead of first dot
                         if (noGap && gap === 0) {
                             const lineColor = whiteCenter ? [255, 255, 255] : [dotR, dotG, dotB]
@@ -688,11 +744,11 @@ export function BloqueMap({
                             p.line(lineX, y - bedH / 2, lineX, y + bedH / 2)
                             p.noStroke()
                         }
-                        
+
                         for (let m = 0; m <= bed.length; m++) {
                             // Skip first dot when no gap (we drew a line instead)
                             if (noGap && gap === 0 && m === 0) continue
-                            
+
                             const sz = (m % 10 === 0 ? 2 : m % 5 === 0 ? 1.5 : 1) * 2 * sf
                             const dotX = bed.isOdd ? x + bedW - m * scale : x + m * scale
                             p.circle(dotX, y, sz)
@@ -702,7 +758,7 @@ export function BloqueMap({
                         // Determine if we should show this cama number based on interval setting
                         const camaNumber = parseInt(bed.nombre)
                         let shouldShowLabel = false
-                        
+
                         if (camaLabelInterval === 'none') {
                             shouldShowLabel = false
                         } else if (camaLabelInterval === 'all') {
@@ -710,8 +766,8 @@ export function BloqueMap({
                         } else if (camaLabelInterval === 'start+intervals') {
                             // Show first cama of each column (1 and 2), then 5 and 6, 10 and 11, etc.
                             const columnStart = bed.isOdd ? 1 : 2
-                            shouldShowLabel = camaNumber === columnStart || 
-                                            (camaNumber > columnStart && (camaNumber - columnStart) % 5 === 0)
+                            shouldShowLabel = camaNumber === columnStart ||
+                                (camaNumber > columnStart && (camaNumber - columnStart) % 5 === 0)
                         } else if (camaLabelInterval === 'every5') {
                             shouldShowLabel = camaNumber === 1 || camaNumber === 2 || camaNumber % 5 === 0
                         } else if (camaLabelInterval === 'every10') {
@@ -719,7 +775,7 @@ export function BloqueMap({
                         } else if (camaLabelInterval === 'both') {
                             shouldShowLabel = camaNumber === 1 || camaNumber === 2 || camaNumber % 5 === 0
                         }
-                        
+
                         if (shouldShowLabel) {
                             if (coloredCamaLabels) {
                                 const labelColor = p.color(bed.varietyLabelColor)
@@ -740,7 +796,7 @@ export function BloqueMap({
                             p.textStyle(p.NORMAL)
                             const labelX = bed.isOdd ? x - 13 * sf : x + bedW + 13 * sf
                             p.text(bed.nombre, labelX, y)
-                            
+
                             // Track bed label bounds
                             const labelW = p.textWidth(bed.nombre)
                             const labelH = textSize * sf
@@ -847,31 +903,31 @@ export function BloqueMap({
                     if (minX !== Infinity) {
                         const contentW = maxX - minX
                         const contentH = maxY - minY
-                        
+
                         if (Math.abs(p.width - contentW) > 2 || Math.abs(p.height - contentH) > 2) {
                             const temp = p.get()
-                            
+
                             // Scale cropped content to fill container
                             const scaleUpX = containerW / contentW
                             const scaleUpY = containerH / contentH
                             const scaleUp = Math.min(scaleUpX, scaleUpY)
-                            
+
                             // Store transform for click detection
                             transformScale = scaleUp
                             transformOffsetX = -minX
                             transformOffsetY = -minY
-                            
+
                             p.resizeCanvas(contentW * scaleUp, contentH * scaleUp)
                             p.background(255)
                             p.image(temp, -minX * scaleUp, -minY * scaleUp, w * scaleUp, h * scaleUp)
                         }
                     }
-                    
+
                     // Update hover detection after bedBounds is populated
                     if (!showSelectionDialogRef.current && !disableInteractionRef.current && p.mouseX >= 0 && p.mouseX <= p.width && p.mouseY >= 0 && p.mouseY <= p.height) {
                         const originalX = (p.mouseX / transformScale) - transformOffsetX
                         const originalY = (p.mouseY / transformScale) - transformOffsetY
-                        
+
                         let foundBed: {
                             nombre: string
                             variedad: string
@@ -900,7 +956,7 @@ export function BloqueMap({
                                 break
                             }
                         }
-                        
+
                         if (foundBed?.nombre !== hoveredCamaRef.current?.nombre) {
                             setHoveredCama(foundBed)
                         }
@@ -918,61 +974,86 @@ export function BloqueMap({
                         p.redraw()
                     })
                 }
-                
+
                 p.mousePressed = () => {
                     // Don't process mouse events if dialog is open
                     if (showSelectionDialogRef.current || disableInteractionRef.current) {
                         return
                     }
-                    
+
                     // Check if click is within canvas
                     if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) {
                         return
                     }
-                    
+
+                    // Check if Ctrl (or Cmd on Mac) is pressed
+                    const isCtrlPressed = p.keyIsDown(p.CONTROL) || p.keyIsDown(17) || p.keyIsDown(91) || p.keyIsDown(93)
+
                     // Store initial drag position
                     lastDragX = p.mouseX
                     lastDragY = p.mouseY
-                    
+
                     // Transform mouse coordinates back to original drawing space
                     const originalX = (p.mouseX / transformScale) - transformOffsetX
                     const originalY = (p.mouseY / transformScale) - transformOffsetY
-                    
+
                     // Find which bed was clicked
                     for (const bed of bedBounds) {
                         if (originalX >= bed.x && originalX <= bed.x + bed.w &&
                             originalY >= bed.y && originalY <= bed.y + bed.h) {
-                            // Toggle selection
-                            setSelectedCamas(prev => {
-                                const next = new Set(prev)
-                                if (next.has(bed.nombre)) {
-                                    next.delete(bed.nombre)
-                                } else {
-                                    next.add(bed.nombre)
-                                }
-                                return next
-                            })
+
+                            if (isCtrlPressed) {
+                                // Ctrl+click: toggle individual bed without clearing others
+                                setSelectedCamas(prev => {
+                                    const next = new Set(prev)
+                                    if (next.has(bed.nombre)) {
+                                        next.delete(bed.nombre)
+                                    } else {
+                                        next.add(bed.nombre)
+                                    }
+                                    return next
+                                })
+                            } else {
+                                // Normal click: start fresh selection (will be used for drag)
+                                setSelectedCamas(prev => {
+                                    const next = new Set(prev)
+                                    if (next.has(bed.nombre)) {
+                                        next.delete(bed.nombre)
+                                    } else {
+                                        next.add(bed.nombre)
+                                    }
+                                    return next
+                                })
+                            }
                             break
                         }
                     }
                 }
-                
+
                 p.mouseDragged = () => {
                     // Don't process mouse events if dialog is open
                     if (showSelectionDialogRef.current || disableInteractionRef.current) {
                         return
                     }
-                    
+
                     // Check if drag is within canvas
                     if (p.mouseX < 0 || p.mouseX > p.width || p.mouseY < 0 || p.mouseY > p.height) {
                         return
                     }
-                    
+
+                    // Check if Ctrl (or Cmd on Mac) is pressed - if so, don't drag-select
+                    const isCtrlPressed = p.keyIsDown(p.CONTROL) || p.keyIsDown(17) || p.keyIsDown(91) || p.keyIsDown(93)
+
+                    // Skip drag selection if Ctrl is pressed (we're doing individual selection only)
+                    if (isCtrlPressed) {
+                        return
+                    }
+
                     // Check all beds along the line from last position to current position
                     const checkBedAtPoint = (mx: number, my: number) => {
                         const originalX = (mx / transformScale) - transformOffsetX
                         const originalY = (my / transformScale) - transformOffsetY
-                        
+
                         for (const bed of bedBounds) {
                             if (originalX >= bed.x && originalX <= bed.x + bed.w &&
                                 originalY >= bed.y && originalY <= bed.y + bed.h) {
@@ -985,14 +1066,14 @@ export function BloqueMap({
                             }
                         }
                     }
-                    
+
                     // Check multiple points along the line to avoid missing beds
                     if (lastDragX !== -1 && lastDragY !== -1) {
                         const dx = p.mouseX - lastDragX
                         const dy = p.mouseY - lastDragY
                         const distance = Math.sqrt(dx * dx + dy * dy)
                         const steps = Math.max(1, Math.ceil(distance / 5)) // Check every 5 pixels
-                        
+
                         for (let i = 0; i <= steps; i++) {
                             const t = i / steps
                             const interpX = lastDragX + dx * t
@@ -1000,30 +1081,30 @@ export function BloqueMap({
                             checkBedAtPoint(interpX, interpY)
                         }
                     }
-                    
+
                     // Update last position
                     lastDragX = p.mouseX
                     lastDragY = p.mouseY
                 }
-                
+
                 p.mouseReleased = () => {
                     // Don't process mouse events if dialog is open
                     if (showSelectionDialogRef.current || disableInteractionRef.current) {
                         return
                     }
-                    
+
                     console.log('mouseReleased called, selected count:', selectedCamasRef.current.size)
                     // Show dialog if we have selected camas
                     if (selectedCamasRef.current.size > 0) {
                         const selectedCamaNames = Array.from(selectedCamasRef.current)
-                        const selectedCamaObjects = beds.filter(bed => 
+                        const selectedCamaObjects = beds.filter(bed =>
                             selectedCamaNames.includes(bed.nombre)
                         )
                         console.log('Selected camas:', selectedCamaNames, 'Objects:', selectedCamaObjects)
                         setSelectionDialogCamas(selectedCamaObjects)
                         setShowSelectionDialog(true)
                     }
-                    
+
                     // Clear selection after capturing it
                     setTimeout(() => {
                         setSelectedCamas(new Set())
@@ -1050,25 +1131,25 @@ export function BloqueMap({
 
     return (
         <div className="relative w-full h-full">
-            <div 
-                ref={containerRef} 
+            <div
+                ref={containerRef}
                 className="w-full h-full flex items-center justify-center"
                 style={{ pointerEvents: (showSelectionDialog || disableInteraction) ? 'none' : 'auto' }}
             />
-            
+
             {hoveredCama && mousePos && (() => {
                 // Smart positioning: show above if more space above, below if more space below
                 const spaceAbove = mousePos.y
                 const spaceBelow = window.innerHeight - mousePos.y
                 const showAbove = spaceBelow < spaceAbove
-                
+
                 return (
-                    <div 
+                    <div
                         className="fixed pointer-events-none bg-popover text-popover-foreground border rounded-md px-3 py-2 text-xs shadow-md z-50"
                         style={{
                             left: `${mousePos.x + 15}px`,
-                            [showAbove ? 'bottom' : 'top']: showAbove 
-                                ? `${window.innerHeight - mousePos.y + 15}px` 
+                            [showAbove ? 'bottom' : 'top']: showAbove
+                                ? `${window.innerHeight - mousePos.y + 15}px`
                                 : `${mousePos.y + 15}px`
                         }}
                     >
@@ -1092,7 +1173,7 @@ export function BloqueMap({
                     </div>
                 )
             })()}
-            
+
             <Dialog open={showSelectionDialog} onOpenChange={setShowSelectionDialog}>
                 <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
@@ -1104,7 +1185,7 @@ export function BloqueMap({
                         {(() => {
                             // Group camas by all grupo variables
                             const groups = new Map<string, typeof selectionDialogCamas>()
-                            
+
                             selectionDialogCamas.forEach(cama => {
                                 const groupKey = JSON.stringify({
                                     grupoId: cama.grupoId,
@@ -1117,17 +1198,17 @@ export function BloqueMap({
                                     length: cama.length,
                                     varietyColor: cama.varietyColor
                                 })
-                                
+
                                 if (!groups.has(groupKey)) {
                                     groups.set(groupKey, [])
                                 }
                                 groups.get(groupKey)!.push(cama)
                             })
-                            
+
                             return Array.from(groups.entries()).map(([groupKey, camas]) => {
                                 const firstCama = camas[0]
                                 const isEditing = editingGroupKey === groupKey
-                                
+
                                 // Use all grupos from bloque for the select dropdown
                                 const allGrupos = grupos
                                     .filter(g => g.id_grupo)
@@ -1140,7 +1221,7 @@ export function BloqueMap({
                                         colorHex: g.colorHex || '#999999'
                                     }))
                                     .sort((a, b) => (a.id || 0) - (b.id || 0))
-                                
+
                                 return (
                                     <div key={groupKey} className="border rounded-lg p-4 relative">
                                         <Button
@@ -1156,7 +1237,7 @@ export function BloqueMap({
                                                     // Get column from database (columna field)
                                                     const columnFromDB = firstCama.columna || null
                                                     const currentColumna = columnFromDB || (parseInt(firstCama.nombre) % 2 === 1 ? 1 : 2)
-                                                    
+
                                                     setEditFormData({
                                                         variety: firstCama.variety,
                                                         grupoNombre: firstCama.grupoNombre,
@@ -1173,7 +1254,7 @@ export function BloqueMap({
                                             <Settings className="h-4 w-4" />
                                         </Button>
                                         <div className="flex gap-3 items-start mb-3">
-                                            <div 
+                                            <div
                                                 className="w-16 h-16 rounded flex-shrink-0"
                                                 style={{ backgroundColor: firstCama.varietyColor }}
                                             />
@@ -1204,12 +1285,12 @@ export function BloqueMap({
                                                                 </SelectTrigger>
                                                                 <SelectContent className="w-full">
                                                                     {allGrupos.map((grupo) => (
-                                                                        <SelectItem 
-                                                                            key={grupo.id} 
+                                                                        <SelectItem
+                                                                            key={grupo.id}
                                                                             value={grupo.id?.toString() || ''}
                                                                         >
                                                                             <div className="flex items-center gap-2">
-                                                                                <div 
+                                                                                <div
                                                                                     className="w-8 h-8 rounded flex-shrink-0"
                                                                                     style={{ backgroundColor: grupo.colorHex }}
                                                                                 />
@@ -1267,8 +1348,8 @@ export function BloqueMap({
                                                                             .map((estado, index) => {
                                                                                 console.log('Rendering estado:', estado)
                                                                                 return (
-                                                                                    <SelectItem 
-                                                                                        key={estado.codigo || `estado-${index}`} 
+                                                                                    <SelectItem
+                                                                                        key={estado.codigo || `estado-${index}`}
                                                                                         value={estado.codigo}
                                                                                     >
                                                                                         {estado.codigo}
@@ -1302,8 +1383,8 @@ export function BloqueMap({
                                                             <Select
                                                                 value={editFormData.columna?.toString() || 'auto'}
                                                                 onValueChange={(value) => {
-                                                                    setEditFormData({ 
-                                                                        ...editFormData, 
+                                                                    setEditFormData({
+                                                                        ...editFormData,
                                                                         columna: value === 'auto' ? null : parseInt(value)
                                                                     })
                                                                 }}
@@ -1424,7 +1505,7 @@ export function BloqueMap({
                                         </div>
                                         <div className="flex flex-wrap gap-1.5 pl-[76px]">
                                             {camas.map(cama => (
-                                                <span 
+                                                <span
                                                     key={cama.nombre}
                                                     className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-secondary"
                                                 >
@@ -1448,7 +1529,7 @@ export function BloqueMap({
                     </DialogHeader>
                     <div className="space-y-4">
                         <p className="text-sm text-muted-foreground">
-                            ¿Estás seguro de que quieres guardar estos cambios? 
+                            ¿Estás seguro de que quieres guardar estos cambios?
                             {pendingSave && (
                                 <span className="block mt-2">
                                     Se actualizarán <strong>{pendingSave.camas.length}</strong> cama(s).

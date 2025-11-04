@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BloqueMapWithSettings } from "@/components/bloque-map-with-settings"
 import { COLORS } from "@/lib/colors"
 import { BloquePageClient } from "@/components/bloque-page-client"
+import { BloqueGruposList } from "@/components/bloque-grupos-list"
 
 export default async function BloquePage({
     params,
@@ -97,164 +98,90 @@ export default async function BloquePage({
             const ancho = cama.ancho_metros || 0
             return sum + (largo * ancho)
         }, 0)
-        
+
         return { grupo, variedad, camas, areaTotal }
     }).sort((a, b) => {
         // First sort by variedad name
         const variedadCompare = (a.variedad?.nombre || '').localeCompare(
-            b.variedad?.nombre || '', 
-            undefined, 
+            b.variedad?.nombre || '',
+            undefined,
             { numeric: true }
         )
         if (variedadCompare !== 0) return variedadCompare
-        
+
         // Then sort by grupo name
         return (a.grupo?.nombre || '').localeCompare(
-            b.grupo?.nombre || '', 
-            undefined, 
+            b.grupo?.nombre || '',
+            undefined,
             { numeric: true }
         )
     })
 
-    // Custom formatter: space for thousands, dot for decimals
-    const formatNumber = (num: number, decimals = 0) => {
-        const [int, dec] = num.toFixed(decimals).split('.')
-        const formattedInt = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-        return dec ? `${formattedInt}.${dec}` : formattedInt
-    }
+    // Add colorHex to gruposList for display
+    const gruposListWithColors = gruposList.map((g) => {
+        const estado = g.grupo.estado?.toLowerCase()
+        let colorHex = estado === 'vegetativo'
+            ? '#555555'
+            : (COLORS[g.variedad?.color?.toLowerCase()] || '#999999')
+
+        // Apply shade variation if multiple grupos share same color
+        const colorName = g.variedad?.color?.toLowerCase() || 'default'
+        const gruposWithSameColor = gruposList.filter(item => {
+            const gEstado = item.grupo.estado?.toLowerCase()
+            const gColor = item.variedad?.color?.toLowerCase() || 'default'
+            return gEstado !== 'vegetativo' && gColor === colorName
+        })
+
+        if (gruposWithSameColor.length > 1 && estado !== 'vegetativo') {
+            const grupoIndexInColor = gruposWithSameColor.findIndex(item =>
+                item.grupo.id_grupo === g.grupo.id_grupo
+            )
+
+            // Convert hex to RGB and blend
+            const hex = colorHex.replace('#', '')
+            const r = parseInt(hex.substr(0, 2), 16)
+            const gVal = parseInt(hex.substr(2, 2), 16)
+            const b = parseInt(hex.substr(4, 2), 16)
+
+            let newR, newG, newB
+            if (grupoIndexInColor % 2 === 0) {
+                // Even: blend 3% with white (lighter)
+                newR = Math.round(r * 0.97 + 255 * 0.03)
+                newG = Math.round(gVal * 0.97 + 255 * 0.03)
+                newB = Math.round(b * 0.97 + 255 * 0.03)
+            } else {
+                // Odd: blend 3% with black (darker)
+                newR = Math.round(r * 0.97)
+                newG = Math.round(gVal * 0.97)
+                newB = Math.round(b * 0.97)
+            }
+
+            colorHex = `rgb(${newR}, ${newG}, ${newB})`
+        }
+
+        return {
+            ...g,
+            variedad: { ...g.variedad, colorHex }
+        }
+    })
 
     return (
         <BloquePageClient
             bloque={bloque}
             finca={finca}
             camasWithData={camasWithData}
-            gruposForMap={gruposList.map((g, idx) => {
-                const estado = g.grupo.estado?.toLowerCase()
-                let colorHex = estado === 'vegetativo' 
-                    ? '#555555' 
-                    : (COLORS[g.variedad?.color?.toLowerCase()] || '#999999')
-                
-                // Apply shade variation if multiple grupos share same color
-                const colorName = g.variedad?.color?.toLowerCase() || 'default'
-                const gruposWithSameColor = gruposList.filter(item => {
-                    const gEstado = item.grupo.estado?.toLowerCase()
-                    const gColor = item.variedad?.color?.toLowerCase() || 'default'
-                    return gEstado !== 'vegetativo' && gColor === colorName
-                })
-                
-                if (gruposWithSameColor.length > 1 && estado !== 'vegetativo') {
-                    const grupoIndexInColor = gruposWithSameColor.findIndex(item => 
-                        item.grupo.id_grupo === g.grupo.id_grupo
-                    )
-                    
-                    // Convert hex to RGB and blend
-                    const hex = colorHex.replace('#', '')
-                    const r = parseInt(hex.substr(0, 2), 16)
-                    const gVal = parseInt(hex.substr(2, 2), 16)
-                    const b = parseInt(hex.substr(4, 2), 16)
-                    
-                    let newR, newG, newB
-                    if (grupoIndexInColor % 2 === 0) {
-                        // Even: blend 3% with white (lighter)
-                        newR = Math.round(r * 0.97 + 255 * 0.03)
-                        newG = Math.round(gVal * 0.97 + 255 * 0.03)
-                        newB = Math.round(b * 0.97 + 255 * 0.03)
-                    } else {
-                        // Odd: blend 3% with black (darker)
-                        newR = Math.round(r * 0.97)
-                        newG = Math.round(gVal * 0.97)
-                        newB = Math.round(b * 0.97)
-                    }
-                    
-                    colorHex = `rgb(${newR}, ${newG}, ${newB})`
-                }
-                
-                return { 
-                    ...g.grupo, 
-                    variedad: g.variedad,
-                    camasCount: g.camas.length,
-                    colorHex
-                }
-            })}
+            gruposForMap={gruposListWithColors.map((g) => ({
+                ...g.grupo,
+                variedad: g.variedad,
+                camasCount: g.camas.length,
+                colorHex: g.variedad.colorHex
+            }))}
             gruposList={gruposList}
         >
             {/* Grupos List */}
-            <div className="w-80 overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-y-auto space-y-3">
-                    {gruposList.map(({ grupo, variedad, camas, areaTotal }, grupoListIndex) => {
-                        const estado = grupo.estado?.toLowerCase()
-                        let colorHex = estado === 'vegetativo' 
-                            ? '#555555' 
-                            : (COLORS[variedad?.color?.toLowerCase()] || '#999999')
-                        
-                        // Apply shade variation if multiple grupos share same color
-                        const colorName = variedad?.color?.toLowerCase() || 'default'
-                        const gruposWithSameColor = gruposList.filter(g => {
-                            const gEstado = g.grupo.estado?.toLowerCase()
-                            const gColor = g.variedad?.color?.toLowerCase() || 'default'
-                            return gEstado !== 'vegetativo' && gColor === colorName
-                        })
-                        
-                        if (gruposWithSameColor.length > 1 && estado !== 'vegetativo') {
-                            const grupoIndexInColor = gruposWithSameColor.findIndex(g => 
-                                g.grupo.id_grupo === grupo.id_grupo
-                            )
-                            
-                            // Convert hex to RGB and blend
-                            const hex = colorHex.replace('#', '')
-                            const r = parseInt(hex.substr(0, 2), 16)
-                            const g = parseInt(hex.substr(2, 2), 16)
-                            const b = parseInt(hex.substr(4, 2), 16)
-                            
-                            let newR, newG, newB
-                            if (grupoIndexInColor % 2 === 0) {
-                                // Even: blend 3% with white (lighter)
-                                newR = Math.round(r * 0.97 + 255 * 0.03)
-                                newG = Math.round(g * 0.97 + 255 * 0.03)
-                                newB = Math.round(b * 0.97 + 255 * 0.03)
-                            } else {
-                                // Odd: blend 3% with black (darker)
-                                newR = Math.round(r * 0.97)
-                                newG = Math.round(g * 0.97)
-                                newB = Math.round(b * 0.97)
-                            }
-                            
-                            colorHex = `rgb(${newR}, ${newG}, ${newB})`
-                        }
-                        
-                        return (
-                            <div key={grupo.id_grupo} className="border rounded-lg overflow-hidden text-sm bg-card flex">
-                                <div 
-                                    className="w-24 aspect-square flex-shrink-0" 
-                                    style={{ backgroundColor: colorHex }}
-                                />
-                                <div className="flex-1 p-3">
-                                    <div className="font-semibold text-foreground mb-1">
-                                        {grupo.nombre}
-                                    </div>
-                                    <div className="text-muted-foreground space-y-0.5 text-xs">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-sm font-semibold">{variedad?.nombre || 'Sin variedad'}</span>
-                                            <span>•</span>
-                                            <span>{grupo.estado || 'N/A'}</span>
-                                        </div>
-                                        <div>{formatNumber(camas.length)} camas</div>
-                                        {grupo.fecha_siembra && (
-                                            <div>Siembra: {new Date(grupo.fecha_siembra).toLocaleDateString()}</div>
-                                        )}
-                                        {grupo.tipo_planta && (
-                                            <div>Tipo: {grupo.tipo_planta}</div>
-                                        )}
-                                        {grupo.patron && (
-                                            <div>Patrón: {grupo.patron}</div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
+            <BloqueGruposList
+                gruposList={gruposListWithColors}
+            />
         </BloquePageClient>
     )
 }
