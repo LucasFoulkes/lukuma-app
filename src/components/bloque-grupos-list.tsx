@@ -128,7 +128,11 @@ export function BloqueGruposList({ gruposList }: BloqueGruposListProps) {
                                         </div>
                                         <div>{formatNumber(camas.length)} camas</div>
                                         {grupo.fecha_siembra && (
-                                            <div>Siembra: {new Date(grupo.fecha_siembra).toLocaleDateString()}</div>
+                                            <div>Siembra: {new Date(grupo.fecha_siembra).toLocaleDateString('es-ES', { 
+                                                year: 'numeric', 
+                                                month: '2-digit', 
+                                                day: '2-digit' 
+                                            })}</div>
                                         )}
                                         {grupo.tipo_planta && (
                                             <div>Tipo: {grupo.tipo_planta}</div>

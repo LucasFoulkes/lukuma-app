@@ -28,6 +28,15 @@ export default async function BloquePage({
             finca = fincaData
             const grupos = allGrupos.filter((g: any) => g.eliminado_en === null)
 
+            console.log(`📊 Bloque ${bloque.nombre} (ID: ${bloque.id_bloque})`)
+            console.log(`  Total grupos fetched: ${allGrupos.length}`)
+            console.log(`  Non-deleted grupos: ${grupos.length}`)
+            console.log('  Grupos:', grupos.map((g: any) => ({ 
+                id: g.id_grupo, 
+                id_variedad: g.id_variedad,
+                eliminado_en: g.eliminado_en 
+            })))
+
             // Get unique variedad IDs
             const variedadIds = new Set<number>()
             grupos.forEach((g: any) => {
@@ -49,6 +58,8 @@ export default async function BloquePage({
                     const allCamas = await getRowsByColumn('cama', 'id_grupo', grupo.id_grupo)
                     const camas = allCamas.filter((c: any) => c.eliminado_en === null)
                     const variedad = variedadMap.get(grupo.id_variedad)
+
+                    console.log(`  Grupo ${grupo.id_grupo} (variedad ${variedad?.nombre}): ${allCamas.length} total, ${camas.length} non-deleted camas`)
 
                     return camas.map((cama: any) => ({
                         ...cama,

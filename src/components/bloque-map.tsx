@@ -388,6 +388,34 @@ export function BloqueMap({
         let mounted = true
         let resizeObserver: ResizeObserver | null = null
 
+        console.log(`🔍 BloqueMap: Received ${camas.length} camas`)
+        console.log('📦 Grupos prop:', grupos)
+        console.log('📦 Grupos in this bloque:', grupos.map(g => ({ 
+            id: g.id_grupo || g.id, 
+            nombre: g.nombre,
+            variedad: g.variedad?.nombre,
+            estado: g.estado
+        })))
+        
+        // Log camas per grupo
+        const camasByGrupo = new Map<number, any[]>()
+        camas.forEach(cama => {
+            const grupoId = cama.grupo?.id_grupo
+            if (grupoId) {
+                if (!camasByGrupo.has(grupoId)) {
+                    camasByGrupo.set(grupoId, [])
+                }
+                camasByGrupo.get(grupoId)?.push(cama.nombre)
+            }
+        })
+        console.log('🛏️ Camas per grupo:')
+        camasByGrupo.forEach((camaNames, grupoId) => {
+            const grupo = camas.find(c => c.grupo?.id_grupo === grupoId)?.grupo
+            console.log(`  Grupo ${grupoId} (${grupo?.nombre}): ${camaNames.length} camas -`, camaNames.sort((a, b) => 
+                a.localeCompare(b, undefined, { numeric: true })
+            ).join(', '))
+        })
+
         const sortedCamas = [...camas].sort((a, b) =>
             a.nombre.localeCompare(b.nombre, undefined, { numeric: true, sensitivity: 'base' })
         )
@@ -423,34 +451,26 @@ export function BloqueMap({
             const mustBeLeft = columnFromDB === 1
             const mustBeRight = columnFromDB === 2
 
-            if (mustBeRight) {
-                // This cama MUST go on the right
-                // If this row already has right filled, move to next row
-                if (rowHasRight) {
-                    currentRow++
-                    rowHasLeft = false
-                    rowHasRight = false
-                }
-                // Place on right (leaves left side of this row empty if it wasn't filled)
-                positionedCamas.push({ cama, row: currentRow, isLeft: false })
-                // Move to next row (this row is done - left is either empty or was already filled)
-                currentRow++
-                rowHasLeft = false
-                rowHasRight = false
-            } else if (mustBeLeft) {
+            if (mustBeLeft) {
                 // This cama MUST go on the left
-                // If this row already has left filled, move to next row
                 if (rowHasLeft) {
+                    // Left is occupied, move to next row
                     currentRow++
                     rowHasLeft = false
                     rowHasRight = false
                 }
-                // Place on left (leaves right side of this row empty if it wasn't filled)
                 positionedCamas.push({ cama, row: currentRow, isLeft: true })
-                // Move to next row (this row is done - right is either empty or was already filled)
-                currentRow++
-                rowHasLeft = false
-                rowHasRight = false
+                rowHasLeft = true
+            } else if (mustBeRight) {
+                // This cama MUST go on the right
+                if (rowHasRight) {
+                    // Right is occupied, move to next row
+                    currentRow++
+                    rowHasLeft = false
+                    rowHasRight = false
+                }
+                positionedCamas.push({ cama, row: currentRow, isLeft: false })
+                rowHasRight = true
             } else {
                 // No preference - natural flow: fill left first, then right
                 if (!rowHasLeft) {
@@ -459,17 +479,21 @@ export function BloqueMap({
                 } else if (!rowHasRight) {
                     positionedCamas.push({ cama, row: currentRow, isLeft: false })
                     rowHasRight = true
-                    // Both sides filled, move to next row
+                } else {
+                    // Both sides already filled (shouldn't happen), move to next row
                     currentRow++
                     rowHasLeft = false
                     rowHasRight = false
-                } else {
-                    // Should never happen
-                    currentRow++
                     positionedCamas.push({ cama, row: currentRow, isLeft: true })
                     rowHasLeft = true
-                    rowHasRight = false
                 }
+            }
+            
+            // After placing, check if both sides are now filled
+            if (rowHasLeft && rowHasRight) {
+                currentRow++
+                rowHasLeft = false
+                rowHasRight = false
             }
         })
 
@@ -497,8 +521,6 @@ export function BloqueMap({
             const grupoIndex = gruposForColor.indexOf(grupoKey)
             const totalGrupos = gruposForColor.length
 
-            console.log(`Cama ${cama.nombre}: variety="${variety}", grupoKey="${grupoKey}", color="${colorName}", totalGrupos=${totalGrupos}, grupoIndex=${grupoIndex}, baseColor=${baseVarietyColor}`)
-
             let finalColor = baseVarietyColor
             if (totalGrupos > 1 && estado !== 'vegetativo') {
                 // Convert hex to RGB
@@ -522,7 +544,6 @@ export function BloqueMap({
                 }
 
                 finalColor = `rgb(${newR}, ${newG}, ${newB})`
-                console.log(`  -> Modified to ${finalColor}`)
             }
 
             return {
