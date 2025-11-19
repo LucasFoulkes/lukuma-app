@@ -89,14 +89,27 @@ export async function getByForeignKey(tableName: string, fkColumn: string, fkVal
     return data || []
 }
 
-export async function getRecentObservaciones(limit: number = 1000) {
+export async function getTableDataOrdered(
+    tableName: string,
+    orderByColumn: string,
+    limit?: number,
+    ascending: boolean = false,
+    offset?: number
+) {
     const supabase = getClient()
 
-    const { data, error } = await supabase
-        .from('observacion')
+    let query = supabase
+        .from(tableName)
         .select('*')
-        .order('creado_en', { ascending: false })
-        .limit(limit)
+        .order(orderByColumn, { ascending })
+
+    if (offset !== undefined && limit) {
+        query = query.range(offset, offset + limit - 1)
+    } else if (limit) {
+        query = query.limit(limit)
+    }
+
+    const { data, error } = await query
 
     if (error) {
         console.error('Error fetching observaciones:', error)
