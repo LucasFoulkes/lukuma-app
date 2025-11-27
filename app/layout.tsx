@@ -37,8 +37,12 @@ export default function RootLayout({
             <main className="flex-1 flex flex-col overflow-hidden">
               <div className="flex items-center gap-4 px-4 py-3 flex-shrink-0">
                 <SidebarTrigger />
-                <Separator orientation="vertical" />
+                <Separator orientation="vertical" className="h-4" />
                 <AppBreadcrumb />
+
+                {/* The Magic Slot for Header Actions */}
+                <div id="header-actions" className="ml-auto flex items-center gap-2" />
+
               </div>
               <Separator />
               {children}
