@@ -46,6 +46,7 @@ export interface DataTableState<TRow> {
     colSpan: number
     metadata: Metadata
     supabase: ReturnType<typeof createBrowserClient>
+    refresh: () => Promise<void>
 }
 
 // --- Hook ---
