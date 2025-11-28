@@ -6,6 +6,8 @@ import {
     Settings,
     ChevronRight,
     FileText,
+    Scissors,
+    Package,
 } from "lucide-react"
 
 import {
@@ -31,6 +33,16 @@ const items = [
         title: "Observaciones",
         url: "/observaciones",
         icon: FileText,
+    },
+    {
+        title: "Pinches",
+        url: "/pinches",
+        icon: Scissors,
+    },
+    {
+        title: "Producción",
+        url: "/produccion",
+        icon: Package,
     },
 ]
 

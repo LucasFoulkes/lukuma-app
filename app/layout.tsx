@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
+import { Providers } from "./providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,24 +32,26 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full overflow-hidden`}
       >
-        <SidebarProvider className="h-full">
-          <div className="flex h-full w-full">
-            <AppSidebar />
-            <main className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex items-center gap-4 px-4 py-3 flex-shrink-0">
-                <SidebarTrigger />
-                <Separator orientation="vertical" className="h-4" />
-                <AppBreadcrumb />
+        <Providers>
+          <SidebarProvider className="h-full">
+            <div className="flex h-full w-full">
+              <AppSidebar />
+              <main className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex items-center gap-4 px-4 py-3 flex-shrink-0">
+                  <SidebarTrigger />
+                  <Separator orientation="vertical" className="h-4" />
+                  <AppBreadcrumb />
 
-                {/* The Magic Slot for Header Actions */}
-                <div id="header-actions" className="ml-auto flex items-center gap-2" />
+                  {/* The Magic Slot for Header Actions */}
+                  <div id="header-actions" className="ml-auto flex items-center gap-2" />
 
-              </div>
-              <Separator />
-              {children}
-            </main>
-          </div>
-        </SidebarProvider>
+                </div>
+                <Separator />
+                {children}
+              </main>
+            </div>
+          </SidebarProvider>
+        </Providers>
       </body>
     </html>
   );

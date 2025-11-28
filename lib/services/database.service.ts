@@ -118,3 +118,36 @@ export async function getTableDataOrdered(
 
     return data || []
 }
+
+/**
+ * Update rows in a table matching a filter condition
+ * @param tableName - Table to update
+ * @param filterColumn - Column to filter by
+ * @param filterValues - Values to match (uses 'in' for arrays)
+ * @param updates - Object with column:value pairs to update
+ */
+export async function updateRows(
+    tableName: string,
+    filterColumn: string,
+    filterValues: string | number | (string | number)[],
+    updates: Record<string, any>
+) {
+    const supabase = getClient()
+
+    let query = supabase.from(tableName).update(updates)
+
+    if (Array.isArray(filterValues)) {
+        query = query.in(filterColumn, filterValues)
+    } else {
+        query = query.eq(filterColumn, filterValues)
+    }
+
+    const { data, error } = await query.select()
+
+    if (error) {
+        console.error(`Error updating ${tableName}:`, error)
+        throw error
+    }
+
+    return data || []
+}
