@@ -8,6 +8,7 @@ import {
     FileText,
     Scissors,
     Package,
+    TrendingUp,
 } from "lucide-react"
 
 import {
@@ -43,6 +44,11 @@ const items = [
         title: "Producción",
         url: "/produccion",
         icon: Package,
+    },
+    {
+        title: "Predicciones",
+        url: "/predicciones",
+        icon: TrendingUp,
     },
 ]
 

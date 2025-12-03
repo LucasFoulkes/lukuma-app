@@ -5,6 +5,7 @@ import { DataTableConfig } from '@/lib/hooks/use-data-table'
 export type ProduccionRow = {
     key: string
     fecha: string
+    fechaDate: Date
     finca: string
     bloque: string
     variedad: string
@@ -76,7 +77,8 @@ export const produccionConfig: DataTableConfig<any, ProduccionRow> = {
 
             if (!fincaName || !bloqueData || !variedadName) return
 
-            const fecha = new Date(prod.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+            const fechaDate = new Date(prod.created_at)
+            const fecha = fechaDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
             const key = `${fecha}-${prod.finca}-${prod.bloque}-${prod.variedad}`
 
             let row = consolidatedMap.get(key)
@@ -84,6 +86,7 @@ export const produccionConfig: DataTableConfig<any, ProduccionRow> = {
                 row = {
                     key,
                     fecha,
+                    fechaDate,
                     finca: fincaName,
                     bloque: bloqueData.nombre,
                     variedad: variedadName,
@@ -97,7 +100,7 @@ export const produccionConfig: DataTableConfig<any, ProduccionRow> = {
 
         return Array.from(consolidatedMap.values())
             .sort((a, b) =>
-                new Date(b.fecha).getTime() - new Date(a.fecha).getTime() ||
+                b.fechaDate.getTime() - a.fechaDate.getTime() ||
                 a.finca.localeCompare(b.finca) ||
                 a.bloque.localeCompare(b.bloque) ||
                 a.variedad.localeCompare(b.variedad)

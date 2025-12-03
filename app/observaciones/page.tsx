@@ -17,42 +17,39 @@ import { observacionesConfig, ObservacionRow, CamaRow, OBS_COLUMNS } from './con
 // --- Row Components ---
 const ObservationRow = memo(({ row, className, onShowMap, onRowClick }: {
     row: ObservacionRow; className?: string; onShowMap: (ids: string[]) => void; onRowClick: (row: ObservacionRow) => void
-}) => (
-    <TableRow className={cn("hover:bg-muted/50 transition-colors cursor-pointer", className)} onClick={() => onRowClick(row)}>
-        <TableCell className="whitespace-nowrap font-medium text-center">{row.fecha}</TableCell>
-        <TableCell className="text-center">{row.finca}</TableCell>
-        <TableCell className="text-center">{row.bloque}</TableCell>
-        <TableCell className="p-0">
-            <div className="w-[140px] px-4 py-2 mx-auto">
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="truncate w-full cursor-help text-muted-foreground hover:text-foreground transition-colors text-center">{row.variedad}</div>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="bg-foreground text-background"><p>{row.variedad}</p></TooltipContent>
-                </Tooltip>
-            </div>
-        </TableCell>
-        <TableCell className="p-1">
-            <div className="flex flex-wrap gap-1 max-w-[200px] justify-center">
-                {row.camas.split(', ').slice(0, 3).map(cama => (
-                    <Badge key={cama} variant="secondary" className="text-[10px] px-1.5 py-0 h-5">{cama}</Badge>
-                ))}
-                {row.camas.split(', ').length > 3 && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 text-muted-foreground">+{row.camas.split(', ').length - 3}</Badge>
-                )}
-            </div>
-        </TableCell>
-        {OBS_COLUMNS.map(col => (
-            <TableCell key={col} className="text-center">{row.tipos[col] || '-'}</TableCell>
-        ))}
-        <TableCell className="text-xs text-muted-foreground truncate max-w-[150px] text-center" title={row.users}>{row.users || '-'}</TableCell>
-        <TableCell className="p-0">
-            <div className="flex items-center justify-center w-full h-full py-2">
-                <GpsButton gpsIds={row.gpsIds} onShowMap={onShowMap} />
-            </div>
-        </TableCell>
-    </TableRow>
-), (prev, next) => prev.row.key === next.row.key && prev.className === next.className)
+}) => {
+    const camas = row.camas.split(', ')
+    return (
+        <TableRow className={cn("hover:bg-muted/50 transition-colors cursor-pointer", className)} onClick={() => onRowClick(row)}>
+            <TableCell className="whitespace-nowrap font-medium text-center">{row.fecha}</TableCell>
+            <TableCell className="text-center">{row.finca}</TableCell>
+            <TableCell className="text-center">{row.bloque}</TableCell>
+            <TableCell className="p-0">
+                <div className="w-[140px] px-4 py-2 mx-auto">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <div className="truncate w-full cursor-help text-muted-foreground hover:text-foreground transition-colors text-center">{row.variedad}</div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="bg-foreground text-background"><p>{row.variedad}</p></TooltipContent>
+                    </Tooltip>
+                </div>
+            </TableCell>
+            <TableCell className="p-1">
+                <div className="flex flex-wrap gap-1 max-w-[200px] justify-center">
+                    {camas.slice(0, 3).map(c => <Badge key={c} variant="secondary" className="text-[10px] px-1.5 py-0 h-5">{c}</Badge>)}
+                    {camas.length > 3 && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 text-muted-foreground">+{camas.length - 3}</Badge>}
+                </div>
+            </TableCell>
+            {OBS_COLUMNS.map(col => <TableCell key={col} className="text-center">{row.tipos[col] || '-'}</TableCell>)}
+            <TableCell className="text-xs text-muted-foreground truncate max-w-[150px] text-center" title={row.users}>{row.users || '-'}</TableCell>
+            <TableCell className="p-0">
+                <div className="flex items-center justify-center w-full h-full py-2">
+                    <GpsButton gpsIds={row.gpsIds} onShowMap={onShowMap} />
+                </div>
+            </TableCell>
+        </TableRow>
+    )
+}, (prev, next) => prev.row.key === next.row.key && prev.className === next.className)
 ObservationRow.displayName = 'ObservationRow'
 
 const CamaDetailRow = ({ camaRow, onShowMap, onEdit }: { camaRow: CamaRow; onShowMap: (ids: string[]) => void; onEdit: (c: CamaRow) => void }) => (
@@ -123,7 +120,7 @@ export default function ObservacionesPage() {
         if (!editingCama || !selectedNewCamaId) return
         setIsUpdating(true)
         try {
-            await supabase.from('observacion').update({ id_cama: selectedNewCamaId }).in('id_observacion', editingCama.obsIds)
+            await supabase.from('observacion').update({ id_cama: Number(selectedNewCamaId) }).in('id_observacion', editingCama.obsIds)
             setEditingCama(null)
             setDetailRow(null)
             refresh()
@@ -139,7 +136,7 @@ export default function ObservacionesPage() {
             <Dialog open={!!detailRow} onOpenChange={(o) => !o && setDetailRow(null)}>
                 <DialogContent className="w-fit !max-w-[95vw] max-h-[85vh] p-0 flex flex-col overflow-hidden">
                     <DialogHeader className="p-4 pb-2 shrink-0 border-b">
-                        <DialogTitle className="flex items-center gap-2">
+                        <DialogTitle className="flex items-center justify-center gap-2">
                             <span>{detailRow?.fecha}</span><span className="text-muted-foreground">•</span>
                             <span>{detailRow?.finca}</span><span className="text-muted-foreground">•</span>
                             <span>{detailRow?.bloque}</span><span className="text-muted-foreground">•</span>

@@ -8,6 +8,20 @@ import { useMetadata, Metadata } from '@/lib/context/metadata-context'
 // --- Types ---
 export type Filters = Record<string, Set<string>>
 
+// --- Helpers ---
+export function getMatchingBedIds(filters: Filters, metadata: Metadata): number[] | null {
+    const hasBedFilters = ['finca', 'bloque', 'variedad', 'cama'].some(k => filters[k]?.size > 0)
+    if (!hasBedFilters) return null
+    return Array.from(metadata.beds.entries())
+        .filter(([_, bed]) =>
+            (!filters.finca?.size || filters.finca.has(bed.finca)) &&
+            (!filters.bloque?.size || filters.bloque.has(bed.bloque)) &&
+            (!filters.variedad?.size || filters.variedad.has(bed.variedad)) &&
+            (!filters.cama?.size || filters.cama.has(bed.cama))
+        )
+        .map(([id]) => id)
+}
+
 export interface DataTableConfig<TRaw, TRow> {
     // Database
     table: string

@@ -11,7 +11,11 @@ export type Bed = {
     variedad: string
     id_bloque: number
     id_variedad: number
+    id_finca: number
     id_grupo: number
+    ancho: number
+    largo: number
+    estado: string  // grupo_cama.estado (e.g., 'Productivo', 'Vegetativo')
 }
 
 export type BloqueInfo = { nombre: string; finca: string }
@@ -46,7 +50,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             const fincaMap = new Map(fincas.map((f: any) => [f.id_finca, f.nombre]))
             const variedadMap = new Map<number, string>(variedades.map((v: any) => [v.id_variedad, v.nombre]))
             const bloqueMap = new Map(bloques.map((b: any) => [b.id_bloque, { nombre: b.nombre, id_finca: b.id_finca }]))
-            const grupoMap = new Map(grupos.map((g: any) => [g.id_grupo, { id_bloque: g.id_bloque, id_variedad: g.id_variedad }]))
+            const grupoMap = new Map(grupos.map((g: any) => [g.id_grupo, { id_bloque: g.id_bloque, id_variedad: g.id_variedad, estado: g.estado || '' }]))
 
             const beds = new Map<number, Bed>()
             camas.forEach((c: any) => {
@@ -60,7 +64,11 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                         variedad: variedadMap.get(grupo.id_variedad) || '',
                         id_bloque: grupo.id_bloque,
                         id_variedad: grupo.id_variedad,
-                        id_grupo: c.id_grupo
+                        id_finca: bloque.id_finca,
+                        id_grupo: c.id_grupo,
+                        ancho: c.ancho_metros || 0,
+                        largo: c.largo_metros || 0,
+                        estado: grupo.estado || ''
                     })
                 }
             })
