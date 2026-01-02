@@ -129,7 +129,7 @@ export default function ObservacionesPage() {
     ], [date, fincaId, bloqueId, variedadId, usuarioId, fincaOptions, bloqueOptions, variedadOptions, usuarioOptions])
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col flex-1 overflow-hidden">
             <HeaderActions>
                 <DownloadDialog 
                     date={date}
