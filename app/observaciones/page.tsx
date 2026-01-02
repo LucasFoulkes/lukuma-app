@@ -129,7 +129,7 @@ export default function ObservacionesPage() {
     ], [date, fincaId, bloqueId, variedadId, usuarioId, fincaOptions, bloqueOptions, variedadOptions, usuarioOptions])
 
     return (
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden min-h-0">
             <HeaderActions>
                 <DownloadDialog 
                     date={date}
@@ -144,7 +144,7 @@ export default function ObservacionesPage() {
                     <Spinner className="size-5" />
                 </div>
             ) : (
-                <ScrollArea className="flex-1">
+                <ScrollArea className="flex-1 min-h-0">
                     <DataTable
                         columns={mainColumns}
                         data={data}
