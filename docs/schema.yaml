@@ -1,0 +1,172 @@
+tables:
+  finca:
+    pk: [id_finca]
+    columns:
+      id_finca:   { type: integer, default: serial }
+      nombre:     { type: varchar(100), nullable: false }
+      creado_en:  { type: timestamptz, default: now() }
+
+  bloque:
+    pk: [id_bloque]
+    fk:
+      id_finca:   { ref: finca.id_finca }
+    columns:
+      id_bloque:  { type: integer, default: serial }
+      nombre:     { type: varchar(20), nullable: false }
+      creado_en:  { type: timestamptz }
+
+  cama:
+    description: "The atomic production unit (Flower Bed)"
+    pk: [id_cama]
+    fk:
+      id_grupo:   { ref: grupo_cama.id_grupo, description: "Current active planting cycle" }
+    columns:
+      id_cama:    { type: bigint } # BigInt for scalability
+      nombre:     { type: varchar(20) }
+      largo_metros:    { type: numeric(5,2) }
+      ancho_metros:    { type: integer }
+      plantas_totales: { type: integer }
+      columna:         { type: integer }
+
+  grupo_cama:
+    description: "A specific batch of plants in a bed"
+    pk: [id_grupo]
+    fk:
+      id_bloque:   { ref: bloque.id_bloque }
+      id_variedad: { ref: variedad.id_variedad }
+      estado:      { ref: grupo_cama_estado.codigo }
+      patron:      { ref: patron.codigo }
+      tipo_planta: { ref: grupo_cama_tipo_planta.codigo }
+    columns:
+      id_grupo:      { type: integer, default: serial }
+      fecha_siembra: { type: date }
+      creado_en:     { type: timestamptz }
+
+  breeder:
+    pk: [id_breeder]
+    columns:
+      id_breeder: { type: integer, default: serial }
+      nombre:     { type: varchar(100) }
+
+  variedad:
+    pk: [id_variedad]
+    fk:
+      id_breeder: { ref: breeder.id_breeder }
+    columns:
+      id_variedad: { type: integer, default: serial }
+      nombre:      { type: varchar(100) }
+      color:       { type: text }
+
+  patron:
+    description: "Rootstock information"
+    pk: [codigo]
+    columns:
+      codigo:    { type: varchar(50) }
+      proveedor: { type: text }
+
+  estado_fenologico:
+    pk: [id_estado_fenologico]
+    fk:
+      id_bloque:   { ref: bloque.id_bloque }
+      id_variedad: { ref: variedad.id_variedad }
+    columns:
+      id_estado_fenologico: { type: integer, default: serial }
+      dias_brotacion:    { type: integer }
+      dias_cincuenta_mm: { type: integer, note: "50mm shoot length" }
+      dias_quince_cm:    { type: integer, note: "15cm shoot length" }
+      dias_veinte_cm:    { type: integer, note: "20cm shoot length" }
+      dias_primera_hoja: { type: integer }
+      dias_espiga:       { type: integer }
+      dias_arroz:        { type: integer, note: "Rice size bud" }
+      dias_arveja:       { type: integer, note: "Pea size bud" }
+      dias_garbanzo:     { type: integer, note: "Chickpea size bud" }
+      dias_uva:          { type: integer, note: "Grape size bud" }
+      dias_rayando_color:    { type: integer }
+      dias_sepalos_abiertos: { type: integer }
+      dias_cosecha:          { type: integer }
+
+  observacion:
+    description: "Field scouting data points"
+    pk: [id_observacion]
+    fk:
+      id_cama:      { ref: cama.id_cama }
+      id_usuario:   { ref: usuario.id_usuario }
+      tipo_observacion: { ref: observacion_tipo.codigo }
+      id_punto_gps: { ref: punto_gps.id }
+    columns:
+      id_observacion: { type: bigint, default: serial }
+      cantidad:       { type: integer }
+      creado_en:      { type: timestamptz }
+
+  punto_gps:
+    description: "Geolocation data for heatmaps"
+    pk: [id]
+    fk:
+      usuario_id: { ref: usuario.id_usuario }
+    columns:
+      id:        { type: uuid, default: gen_random_uuid() }
+      latitud:   { type: double precision }
+      longitud:  { type: double precision }
+      altitud:   { type: double precision }
+      precision: { type: real }
+
+  pinche:
+    description: "Pruning/Pinching labor tracking"
+    pk: [id]
+    fk:
+      bloque:   { ref: bloque.id_bloque }
+      cama:     { ref: cama.id_cama }
+      variedad: { ref: variedad.id_variedad }
+      tipo:     { ref: pinche_tipo.codigo }
+    columns:
+      id:         { type: bigint }
+      cantidad:   { type: bigint }
+      created_at: { type: timestamptz, default: now() }
+
+  produccion:
+    description: "Harvest data"
+    pk: [created_at, finca, bloque, variedad] # Composite Key
+    fk:
+      finca:    { ref: finca.id_finca }
+      bloque:   { ref: bloque.id_bloque }
+      variedad: { ref: variedad.id_variedad }
+    columns:
+      cantidad:   { type: integer }
+      created_at: { type: timestamptz }
+
+  usuario:
+    pk: [id_usuario]
+    fk:
+      rol: { ref: rol.codigo }
+    columns:
+      id_usuario: { type: bigint }
+      nombre_usuario: { type: varchar(50) }
+      nombres:    { type: text }
+      apellidos:  { type: text }
+      cedula:     { type: text }
+      pin:        { type: varchar }
+
+  rol:
+    pk: [codigo]
+    columns:
+      codigo: { type: varchar(50) }
+
+# ==============================================================================
+# DATABASE VIEWS
+# Virtual tables for reporting
+# ==============================================================================
+views:
+  v_observacion_cama:
+    description: "Pivot view aggregating phenological stages per bed"
+    columns:
+      - id_cama
+      - id_grupo
+      - id_bloque
+      - id_variedad
+      - estado
+      - brotacion (count)
+      - arroz (count)
+      - arveja (count)
+      - garbanzo (count)
+      - cosecha (count)
+      - usuario_ids (array)

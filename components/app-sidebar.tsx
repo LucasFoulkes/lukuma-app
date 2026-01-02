@@ -1,13 +1,11 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
-    Map,
     Settings,
     ChevronRight,
     FileText,
-    Scissors,
-    Package,
 } from "lucide-react"
 
 import {
@@ -25,24 +23,9 @@ import {
 
 const items = [
     {
-        title: "Mapa",
-        url: "/mapa",
-        icon: Map,
-    },
-    {
         title: "Observaciones",
         url: "/observaciones",
         icon: FileText,
-    },
-    {
-        title: "Pinches",
-        url: "/pinches",
-        icon: Scissors,
-    },
-    {
-        title: "Producción",
-        url: "/produccion",
-        icon: Package,
     },
 ]
 
@@ -53,7 +36,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <a href="/">
+                            <Link href="/">
                                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                                     <ChevronRight className="size-4" />
                                 </div>
@@ -61,7 +44,7 @@ export function AppSidebar() {
                                     <span className="truncate font-semibold">Lukuma App</span>
                                     <span className="truncate text-xs">v1.0.0</span>
                                 </div>
-                            </a>
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
@@ -73,10 +56,10 @@ export function AppSidebar() {
                             {items.map((item) => (
                                 <SidebarMenuItem key={item.title}>
                                     <SidebarMenuButton asChild tooltip={item.title}>
-                                        <a href={item.url}>
+                                        <Link href={item.url}>
                                             <item.icon />
                                             <span>{item.title}</span>
-                                        </a>
+                                        </Link>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                             ))}
@@ -88,10 +71,10 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton asChild tooltip="Settings">
-                            <a href="/settings">
+                            <Link href="/settings">
                                 <Settings />
                                 <span>Settings</span>
-                            </a>
+                            </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
