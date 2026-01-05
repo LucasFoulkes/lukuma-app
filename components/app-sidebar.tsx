@@ -27,6 +27,11 @@ const items = [
         url: "/observaciones",
         icon: FileText,
     },
+    {
+        title: "Pinches",
+        url: "/pinches",
+        icon: FileText,
+    },
 ]
 
 export function AppSidebar() {
