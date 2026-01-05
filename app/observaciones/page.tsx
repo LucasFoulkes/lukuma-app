@@ -54,9 +54,9 @@ export default function ObservacionesPage() {
     const [selected, setSelected] = useState<ObservacionRow | null>(null)
 
     // Prepare options for filters
-    const fincaOptions = useMemo(() => 
-        Array.from(fincas.entries()).map(([id, name]) => ({ value: id, label: name })), 
-    [fincas])
+    const fincaOptions = useMemo(() =>
+        Array.from(fincas.entries()).map(([id, name]) => ({ value: id, label: name })),
+        [fincas])
 
     const bloqueOptions = useMemo(() => {
         const all = Array.from(bloques.entries()).map(([id, b]) => ({ value: id, label: b.nombre, fincaId: b.id_finca }))
@@ -64,13 +64,13 @@ export default function ObservacionesPage() {
         return all.filter(b => b.fincaId === fincaId)
     }, [bloques, fincaId])
 
-    const variedadOptions = useMemo(() => 
-        Array.from(variedades.entries()).map(([id, name]) => ({ value: id, label: name })), 
-    [variedades])
+    const variedadOptions = useMemo(() =>
+        Array.from(variedades.entries()).map(([id, name]) => ({ value: id, label: name })),
+        [variedades])
 
-    const usuarioOptions = useMemo(() => 
-        Array.from(users.entries()).map(([id, name]) => ({ value: id, label: name })), 
-    [users])
+    const usuarioOptions = useMemo(() =>
+        Array.from(users.entries()).map(([id, name]) => ({ value: id, label: name })),
+        [users])
 
     const mainColumns = useMemo<Column<ObservacionRow>[]>(() => [
         {
@@ -80,17 +80,17 @@ export default function ObservacionesPage() {
             className: 'text-center',
             render: r => formatDate(first(r).primeraHora)
         },
-        { 
-            key: 'finca', 
-            label: 'Finca', 
-            header: () => <SelectFilter title="Finca" value={fincaId} onChange={setFincaId} options={fincaOptions} />, 
-            className: 'max-w-[100px] truncate text-center' 
+        {
+            key: 'finca',
+            label: 'Finca',
+            header: () => <SelectFilter title="Finca" value={fincaId} onChange={setFincaId} options={fincaOptions} />,
+            className: 'max-w-[100px] truncate text-center'
         },
-        { 
-            key: 'bloque', 
-            label: 'Bloque', 
-            header: () => <SelectFilter title="Bloque" value={bloqueId} onChange={setBloqueId} options={bloqueOptions} />, 
-            className: 'text-center' 
+        {
+            key: 'bloque',
+            label: 'Bloque',
+            header: () => <SelectFilter title="Bloque" value={bloqueId} onChange={setBloqueId} options={bloqueOptions} />,
+            className: 'text-center'
         },
         {
             key: 'camas',
@@ -106,11 +106,11 @@ export default function ObservacionesPage() {
                 )
             }
         },
-        { 
-            key: 'variedad', 
-            label: 'Variedad', 
-            header: () => <SelectFilter title="Variedad" value={variedadId} onChange={setVariedadId} options={variedadOptions} />, 
-            className: 'max-w-[120px] truncate text-center' 
+        {
+            key: 'variedad',
+            label: 'Variedad',
+            header: () => <SelectFilter title="Variedad" value={variedadId} onChange={setVariedadId} options={variedadOptions} />,
+            className: 'max-w-[120px] truncate text-center'
         },
         { key: 'estado', label: 'Estado', header: () => <div className="text-center w-full">Estado</div>, className: 'text-center' },
         { key: 'arroz', label: 'Arroz', className: 'text-center', render: r => sum(r, 'arroz') },
@@ -119,19 +119,19 @@ export default function ObservacionesPage() {
         { key: 'rayando_color', label: 'Rayando Color', className: 'text-center', render: r => sum(r, 'rayando_color') },
         { key: 'sepalos_abiertos', label: 'Sépalos Abiertos', className: 'text-center', render: r => sum(r, 'sepalos_abiertos') },
         { key: 'pct', label: '%', className: 'text-center', render: r => formatPct(sum(r, 'pct')) },
-        { 
-            key: 'usuarios', 
-            label: 'Usuarios', 
+        {
+            key: 'usuarios',
+            label: 'Usuarios',
             header: () => <SelectFilter title="Usuarios" value={usuarioId} onChange={setUsuarioId} options={usuarioOptions} />,
-            className: 'max-w-[150px] truncate', 
-            render: r => usuarios(r) 
+            className: 'max-w-[150px] truncate',
+            render: r => usuarios(r)
         }
     ], [date, fincaId, bloqueId, variedadId, usuarioId, fincaOptions, bloqueOptions, variedadOptions, usuarioOptions])
 
     return (
         <div className="flex flex-col flex-1 overflow-hidden min-h-0">
             <HeaderActions>
-                <DownloadDialog 
+                <DownloadDialog
                     date={date}
                     fincaId={fincaId}
                     bloqueId={bloqueId}

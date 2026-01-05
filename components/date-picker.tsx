@@ -67,8 +67,8 @@ export function DatePicker({
           <button
             className={cn(
               'group flex items-center justify-center w-full gap-2 text-sm transition-all rounded-md px-3 py-1.5 outline-none',
-              isActive 
-                ? 'text-zinc-900 font-bold bg-zinc-100' 
+              isActive
+                ? 'text-zinc-900 font-bold bg-zinc-100'
                 : 'text-zinc-500 font-medium hover:bg-zinc-100 hover:text-zinc-900'
             )}
           >

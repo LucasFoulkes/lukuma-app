@@ -32,10 +32,10 @@ export function SelectFilter<T extends string | number>({
 }: SelectFilterProps<T>) {
   const [open, setOpen] = React.useState(false)
 
-  const selectedLabel = value 
-    ? options.find(o => o.value === value)?.label 
+  const selectedLabel = value
+    ? options.find(o => o.value === value)?.label
     : title
-  
+
   const isActive = value !== undefined
 
   return (
@@ -45,8 +45,8 @@ export function SelectFilter<T extends string | number>({
           <button
             className={cn(
               'group flex items-center justify-center w-full gap-2 text-sm transition-all rounded-md px-3 py-1.5 outline-none',
-              isActive 
-                ? 'text-zinc-900 font-bold bg-zinc-100' 
+              isActive
+                ? 'text-zinc-900 font-bold bg-zinc-100'
                 : 'text-zinc-500 font-medium hover:bg-zinc-100 hover:text-zinc-900'
             )}
           >
@@ -62,48 +62,48 @@ export function SelectFilter<T extends string | number>({
           align="start"
           sideOffset={8}
         >
-            <div className="p-1 max-h-[300px] overflow-y-auto">
-                {options.length === 0 ? (
-                    <div className="px-2 py-4 text-sm text-center text-zinc-500">
-                        No hay opciones
-                    </div>
-                ) : (
-                    options.map((option) => (
-                        <div
-                            key={String(option.value)}
-                            className={cn(
-                                "flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm cursor-pointer hover:bg-zinc-100",
-                                value === option.value ? "font-medium text-zinc-900" : "text-zinc-600"
-                            )}
-                            onClick={() => {
-                                onChange?.(option.value)
-                                setOpen(false)
-                            }}
-                        >
-                            <div className={cn("h-4 w-4 flex items-center justify-center", value === option.value ? "opacity-100" : "opacity-0")}>
-                                <Check className="h-3 w-3" />
-                            </div>
-                            {option.label}
-                        </div>
-                    ))
-                )}
-            </div>
-            {isActive && (
-                <div className="flex items-center justify-center px-4 py-2 border-t border-zinc-100 bg-zinc-50/50">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onChange?.(undefined)
-                        setOpen(false)
-                    }}
-                    className="h-7 px-4 text-[11px] uppercase tracking-wider font-bold text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100"
-                  >
-                    Limpiar
-                  </Button>
+          <div className="p-1 max-h-[300px] overflow-y-auto">
+            {options.length === 0 ? (
+              <div className="px-2 py-4 text-sm text-center text-zinc-500">
+                No hay opciones
+              </div>
+            ) : (
+              options.map((option) => (
+                <div
+                  key={String(option.value)}
+                  className={cn(
+                    "flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm cursor-pointer hover:bg-zinc-100",
+                    value === option.value ? "font-medium text-zinc-900" : "text-zinc-600"
+                  )}
+                  onClick={() => {
+                    onChange?.(option.value)
+                    setOpen(false)
+                  }}
+                >
+                  <div className={cn("h-4 w-4 flex items-center justify-center", value === option.value ? "opacity-100" : "opacity-0")}>
+                    <Check className="h-3 w-3" />
+                  </div>
+                  {option.label}
                 </div>
+              ))
             )}
+          </div>
+          {isActive && (
+            <div className="flex items-center justify-center px-4 py-2 border-t border-zinc-100 bg-zinc-50/50">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onChange?.(undefined)
+                  setOpen(false)
+                }}
+                className="h-7 px-4 text-[11px] uppercase tracking-wider font-bold text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100"
+              >
+                Limpiar
+              </Button>
+            </div>
+          )}
         </PopoverContent>
       </Popover>
     </div>

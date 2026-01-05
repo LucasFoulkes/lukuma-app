@@ -93,10 +93,10 @@ function buildMetadata({ grupo_cama, bloque, finca, variedad, usuario }: RawTabl
         bloqueActiveAreas.set(blockKey, (bloqueActiveAreas.get(blockKey) || 0) + groupArea)
     }
 
-    const bloques = new Map(bloque.map(b => [b.id_bloque, { 
-        nombre: b.nombre, 
+    const bloques = new Map(bloque.map(b => [b.id_bloque, {
+        nombre: b.nombre,
         finca: fincas.get(b.id_finca) || '',
-        id_finca: b.id_finca 
+        id_finca: b.id_finca
     }]))
     const users = new Map(usuario.map(u => [u.id_usuario, `${u.nombres} ${u.apellidos || ''}`.trim()]))
 

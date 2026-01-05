@@ -8,7 +8,7 @@ import { transformObservaciones, type ViewObservacionCama, type ObservacionRow }
 const PAGE_SIZE = 200
 
 export function useObservaciones(
-    date?: DateRange, 
+    date?: DateRange,
     fincaId?: number,
     bloqueId?: number,
     variedadId?: number,

@@ -45,7 +45,7 @@ export function DownloadDialog({
     const handleDownload = async () => {
         try {
             setLoading(true)
-            
+
             // 1. Build Query
             const where: Record<string, any> = {}
             if (date?.from) {
@@ -71,9 +71,9 @@ export function DownloadDialog({
             // 4. Format for Excel
             const excelRows = rows.map(r => {
                 // Calculate sums
-                const sum = (key: keyof typeof r.camas[0]) => 
+                const sum = (key: keyof typeof r.camas[0]) =>
                     r.camas.reduce((acc, c) => acc + (typeof c[key] === 'number' ? c[key] as number : 0), 0)
-                
+
                 const users = [...new Set(r.camas.flatMap(c => c.usuarios))].join(', ')
 
                 return {
@@ -97,7 +97,7 @@ export function DownloadDialog({
             const ws = XLSX.utils.json_to_sheet(excelRows)
             const wb = XLSX.utils.book_new()
             XLSX.utils.book_append_sheet(wb, ws, "Observaciones")
-            
+
             const fileName = `Observaciones_${format(new Date(), 'yyyy-MM-dd_HHmm')}.xlsx`
             XLSX.writeFile(wb, fileName)
 

@@ -31,6 +31,7 @@ export async function query<T = Record<string, unknown>>(
         if (col.endsWith('_gte')) q = q.gte(col.replace('_gte', ''), val as any)
         else if (col.endsWith('_lte')) q = q.lte(col.replace('_lte', ''), val as any)
         else if (col.endsWith('_cs')) q = q.contains(col.replace('_cs', ''), val as any)
+        else if (col.endsWith('_in')) q = q.in(col.replace('_in', ''), val as any)
         else q = q.eq(col, val as any)
     }
     if (orderBy) q = q.order(orderBy, { ascending })

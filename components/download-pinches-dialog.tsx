@@ -24,6 +24,7 @@ import { formatDate, formatTime } from '@/lib/utils/format'
 
 interface DownloadPinchesDialogProps {
     date?: DateRange
+    fincaId?: number
     bloqueId?: number
     variedadId?: number
     tipo?: string
@@ -31,6 +32,7 @@ interface DownloadPinchesDialogProps {
 
 export function DownloadPinchesDialog({
     date,
+    fincaId,
     bloqueId,
     variedadId,
     tipo
@@ -38,11 +40,12 @@ export function DownloadPinchesDialog({
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const metadata = useMetadata()
+    const { bloques } = metadata
 
     const handleDownload = async () => {
         try {
             setLoading(true)
-            
+
             // 1. Build Query
             const where: Record<string, any> = {}
             if (date?.from) {
@@ -51,6 +54,21 @@ export function DownloadPinchesDialog({
                 where.created_at_gte = `${fromStr}T00:00:00`
                 where.created_at_lte = `${toStr}T23:59:59`
             }
+
+            if (fincaId) {
+                const blockIds: number[] = []
+                for (const [id, b] of bloques.entries()) {
+                    if (b.id_finca === fincaId) {
+                        blockIds.push(id)
+                    }
+                }
+                if (blockIds.length > 0) {
+                    where.bloque_in = blockIds
+                } else {
+                    where.bloque = -1 
+                }
+            }
+
             if (bloqueId) where.bloque = bloqueId
             if (variedadId) where.variedad = variedadId
             if (tipo) where.tipo = tipo
@@ -69,9 +87,9 @@ export function DownloadPinchesDialog({
             const excelRows = rows.map(r => ({
                 Fecha: formatDate(r.fecha),
                 Hora: formatTime(r.fecha),
+                Finca: r.finca,
                 Bloque: r.bloque,
                 Variedad: r.variedad,
-                Cama: r.cama || '-',
                 Tipo: r.tipo,
                 Cantidad: r.cantidad
             }))
@@ -80,7 +98,7 @@ export function DownloadPinchesDialog({
             const ws = XLSX.utils.json_to_sheet(excelRows)
             const wb = XLSX.utils.book_new()
             XLSX.utils.book_append_sheet(wb, ws, "Pinches")
-            
+
             XLSX.writeFile(wb, `pinches_${format(new Date(), 'yyyy-MM-dd')}.xlsx`)
             setOpen(false)
         } catch (error) {
@@ -93,9 +111,9 @@ export function DownloadPinchesDialog({
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button 
-                    variant="outline" 
-                    size="sm" 
+                <Button
+                    variant="outline"
+                    size="sm"
                     className="bg-emerald-600 hover:bg-emerald-700 text-white hover:text-white border-0 gap-2"
                 >
                     <Download className="size-4" />

@@ -21,17 +21,24 @@ const PINCHE_TYPES = [
 
 export default function PinchesPage() {
     const [date, setDate] = useState<DateRange | undefined>()
+    const [fincaId, setFincaId] = useState<number | undefined>()
     const [bloqueId, setBloqueId] = useState<number | undefined>()
     const [variedadId, setVariedadId] = useState<number | undefined>()
     const [tipo, setTipo] = useState<string | undefined>()
 
-    const { bloques, variedades } = useMetadata()
-    const { data, loading, loadMore, loadingMore } = usePinches(date, bloqueId, variedadId, tipo)
+    const { fincas, bloques, variedades } = useMetadata()
+    const { data, loading, loadMore, loadingMore } = usePinches(date, fincaId, bloqueId, variedadId, tipo)
 
     // Prepare options for filters
-    const bloqueOptions = useMemo(() => 
-        Array.from(bloques.entries()).map(([id, b]) => ({ value: id, label: b.nombre })), 
-    [bloques])
+    const fincaOptions = useMemo(() => 
+        Array.from(fincas.entries()).map(([id, name]) => ({ value: id, label: name })), 
+    [fincas])
+
+    const bloqueOptions = useMemo(() => {
+        const all = Array.from(bloques.entries()).map(([id, b]) => ({ value: id, label: b.nombre, fincaId: b.id_finca }))
+        if (!fincaId) return all
+        return all.filter(b => b.fincaId === fincaId)
+    }, [bloques, fincaId])
 
     const variedadOptions = useMemo(() => 
         Array.from(variedades.entries()).map(([id, name]) => ({ value: id, label: name })), 
@@ -47,12 +54,13 @@ export default function PinchesPage() {
             label: 'Fecha',
             header: () => <DatePicker date={date} onDateChange={setDate} placeholder="Fecha" />,
             className: 'text-center',
-            render: r => (
-                <div className="flex flex-col">
-                    <span>{formatDate(r.fecha)}</span>
-                    <span className="text-xs text-muted-foreground">{formatTime(r.fecha)}</span>
-                </div>
-            )
+            render: r => formatDate(r.fecha)
+        },
+        { 
+            key: 'finca', 
+            label: 'Finca', 
+            header: () => <SelectFilter title="Finca" value={fincaId} onChange={setFincaId} options={fincaOptions} />, 
+            className: 'max-w-[100px] truncate text-center' 
         },
         { 
             key: 'bloque', 
@@ -66,12 +74,6 @@ export default function PinchesPage() {
             header: () => <SelectFilter title="Variedad" value={variedadId} onChange={setVariedadId} options={variedadOptions} />, 
             className: 'text-center' 
         },
-        {
-            key: 'cama',
-            label: 'Cama',
-            className: 'text-center',
-            render: r => r.cama || '-'
-        },
         { 
             key: 'tipo', 
             label: 'Tipo', 
@@ -83,13 +85,14 @@ export default function PinchesPage() {
             label: 'Cantidad', 
             className: 'text-center font-medium' 
         }
-    ], [date, bloqueId, variedadId, tipo, bloqueOptions, variedadOptions, tipoOptions])
+    ], [date, fincaId, bloqueId, variedadId, tipo, fincaOptions, bloqueOptions, variedadOptions, tipoOptions])
 
     return (
         <div className="flex flex-col flex-1 overflow-hidden min-h-0">
             <HeaderActions>
                 <DownloadPinchesDialog 
                     date={date}
+                    fincaId={fincaId}
                     bloqueId={bloqueId}
                     variedadId={variedadId}
                     tipo={tipo}
