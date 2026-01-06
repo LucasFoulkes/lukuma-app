@@ -28,7 +28,7 @@ export function usePinches(
             where.created_at_gte = `${fromStr}T00:00:00`
             where.created_at_lte = `${toStr}T23:59:59`
         }
-        
+
         if (fincaId) {
             // Find all blocks for this finca
             const blockIds: number[] = []
@@ -37,14 +37,14 @@ export function usePinches(
                     blockIds.push(id)
                 }
             }
-            
+
             // If no blocks found for finca, we should probably return empty or handle it.
             // But if we pass empty array to _in, it might error or return nothing.
             if (blockIds.length > 0) {
                 where.bloque_in = blockIds
             } else {
                 // Force empty result if finca has no blocks
-                where.bloque = -1 
+                where.bloque = -1
             }
         }
 

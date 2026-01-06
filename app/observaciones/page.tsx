@@ -30,16 +30,16 @@ const usuarios = (r: ObservacionRow) => {
 }
 
 const dialogColumns: Column<CamaDetail>[] = [
-    { key: 'cama', label: 'Cama' },
-    { key: 'primeraHora', label: 'Inicio', render: r => formatTime(r.primeraHora) },
-    { key: 'duracion', label: 'Duración', render: r => formatDuration(r.primeraHora, r.ultimaHora) },
+    { key: 'cama', label: 'Cama', className: 'text-center' },
+    { key: 'primeraHora', label: 'Inicio', className: 'text-center', render: r => formatTime(r.primeraHora) },
+    { key: 'duracion', label: 'Duración', className: 'text-center', render: r => formatDuration(r.primeraHora, r.ultimaHora) },
     { key: 'arroz', label: 'Arroz', className: 'text-center' },
     { key: 'arveja', label: 'Arveja', className: 'text-center' },
     { key: 'garbanzo', label: 'Garbanzo', className: 'text-center' },
     { key: 'rayando_color', label: 'Rayando Color', className: 'text-center' },
     { key: 'sepalos_abiertos', label: 'Sépalos Abiertos', className: 'text-center' },
     { key: 'pct', label: '%', className: 'text-center', render: r => formatPct(r.pct) },
-    { key: 'usuarios', label: 'Usuarios', className: 'max-w-[150px] truncate', render: r => r.usuarios.join(', ') }
+    { key: 'usuarios', label: 'Usuarios', className: 'max-w-[150px] truncate text-center', render: r => r.usuarios.join(', ') }
 ]
 
 export default function ObservacionesPage() {
@@ -158,26 +158,19 @@ export default function ObservacionesPage() {
             )}
 
             <Dialog open={!!selected} onOpenChange={open => !open && setSelected(null)}>
-                <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+                <DialogContent className="max-w-[90vw] md:max-w-7xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
                     <DialogHeader className="p-6 border-b bg-muted/30">
-                        <div className="flex flex-col gap-1">
-                            <DialogTitle className="text-xl">Detalle de Observaciones</DialogTitle>
-                            <p className="text-sm text-muted-foreground">
-                                {selected && `${formatDate(first(selected).primeraHora)} • ${selected.finca} • Bloque ${selected.bloque} • ${selected.variedad}`}
-                            </p>
-                        </div>
+                        <DialogTitle className="text-xl text-center">
+                            {selected && `${formatDate(first(selected).primeraHora)} • ${selected.finca} • Bloque ${selected.bloque} • ${selected.variedad}`}
+                        </DialogTitle>
                     </DialogHeader>
                     <div className="flex-1 overflow-hidden">
                         <ScrollArea className="h-full">
-                            <div className="p-6">
-                                <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
-                                    <DataTable
-                                        columns={dialogColumns}
-                                        data={selected?.camas || []}
-                                        getRowKey={r => r.idCama}
-                                    />
-                                </div>
-                            </div>
+                            <DataTable
+                                columns={dialogColumns}
+                                data={selected?.camas || []}
+                                getRowKey={r => r.idCama}
+                            />
                         </ScrollArea>
                     </div>
                 </DialogContent>

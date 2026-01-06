@@ -65,7 +65,7 @@ export function DownloadPinchesDialog({
                 if (blockIds.length > 0) {
                     where.bloque_in = blockIds
                 } else {
-                    where.bloque = -1 
+                    where.bloque = -1
                 }
             }
 

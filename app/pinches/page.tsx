@@ -30,9 +30,9 @@ export default function PinchesPage() {
     const { data, loading, loadMore, loadingMore } = usePinches(date, fincaId, bloqueId, variedadId, tipo)
 
     // Prepare options for filters
-    const fincaOptions = useMemo(() => 
-        Array.from(fincas.entries()).map(([id, name]) => ({ value: id, label: name })), 
-    [fincas])
+    const fincaOptions = useMemo(() =>
+        Array.from(fincas.entries()).map(([id, name]) => ({ value: id, label: name })),
+        [fincas])
 
     const bloqueOptions = useMemo(() => {
         const all = Array.from(bloques.entries()).map(([id, b]) => ({ value: id, label: b.nombre, fincaId: b.id_finca }))
@@ -40,13 +40,13 @@ export default function PinchesPage() {
         return all.filter(b => b.fincaId === fincaId)
     }, [bloques, fincaId])
 
-    const variedadOptions = useMemo(() => 
-        Array.from(variedades.entries()).map(([id, name]) => ({ value: id, label: name })), 
-    [variedades])
+    const variedadOptions = useMemo(() =>
+        Array.from(variedades.entries()).map(([id, name]) => ({ value: id, label: name })),
+        [variedades])
 
-    const tipoOptions = useMemo(() => 
-        PINCHE_TYPES.map(t => ({ value: t, label: t })), 
-    [])
+    const tipoOptions = useMemo(() =>
+        PINCHE_TYPES.map(t => ({ value: t, label: t })),
+        [])
 
     const columns = useMemo<Column<PincheRow>[]>(() => [
         {
@@ -56,41 +56,41 @@ export default function PinchesPage() {
             className: 'text-center',
             render: r => formatDate(r.fecha)
         },
-        { 
-            key: 'finca', 
-            label: 'Finca', 
-            header: () => <SelectFilter title="Finca" value={fincaId} onChange={setFincaId} options={fincaOptions} />, 
-            className: 'max-w-[100px] truncate text-center' 
+        {
+            key: 'finca',
+            label: 'Finca',
+            header: () => <SelectFilter title="Finca" value={fincaId} onChange={setFincaId} options={fincaOptions} />,
+            className: 'max-w-[100px] truncate text-center'
         },
-        { 
-            key: 'bloque', 
-            label: 'Bloque', 
-            header: () => <SelectFilter title="Bloque" value={bloqueId} onChange={setBloqueId} options={bloqueOptions} />, 
-            className: 'text-center' 
+        {
+            key: 'bloque',
+            label: 'Bloque',
+            header: () => <SelectFilter title="Bloque" value={bloqueId} onChange={setBloqueId} options={bloqueOptions} />,
+            className: 'text-center'
         },
-        { 
-            key: 'variedad', 
-            label: 'Variedad', 
-            header: () => <SelectFilter title="Variedad" value={variedadId} onChange={setVariedadId} options={variedadOptions} />, 
-            className: 'text-center' 
+        {
+            key: 'variedad',
+            label: 'Variedad',
+            header: () => <SelectFilter title="Variedad" value={variedadId} onChange={setVariedadId} options={variedadOptions} />,
+            className: 'text-center'
         },
-        { 
-            key: 'tipo', 
-            label: 'Tipo', 
-            header: () => <SelectFilter title="Tipo" value={tipo} onChange={setTipo} options={tipoOptions} />, 
-            className: 'text-center capitalize' 
+        {
+            key: 'tipo',
+            label: 'Tipo',
+            header: () => <SelectFilter title="Tipo" value={tipo} onChange={setTipo} options={tipoOptions} />,
+            className: 'text-center capitalize'
         },
-        { 
-            key: 'cantidad', 
-            label: 'Cantidad', 
-            className: 'text-center font-medium' 
+        {
+            key: 'cantidad',
+            label: 'Cantidad',
+            className: 'text-center font-medium'
         }
     ], [date, fincaId, bloqueId, variedadId, tipo, fincaOptions, bloqueOptions, variedadOptions, tipoOptions])
 
     return (
         <div className="flex flex-col flex-1 overflow-hidden min-h-0">
             <HeaderActions>
-                <DownloadPinchesDialog 
+                <DownloadPinchesDialog
                     date={date}
                     fincaId={fincaId}
                     bloqueId={bloqueId}
