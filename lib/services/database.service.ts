@@ -89,6 +89,28 @@ export async function update<T = Record<string, unknown>>(
     return (data || []) as T[]
 }
 
+/** Update rows matching generic filter */
+export async function updateWhere<T = Record<string, unknown>>(
+    table: string,
+    where: Record<string, unknown>,
+    updates: Partial<T>
+): Promise<T[]> {
+    let q = getClient().from(table).update(updates).select()
+
+    for (const [col, val] of Object.entries(where)) {
+        if (val === undefined) continue
+        if (col.endsWith('_gte')) q = q.gte(col.replace('_gte', ''), val as any)
+        else if (col.endsWith('_lte')) q = q.lte(col.replace('_lte', ''), val as any)
+        else if (col.endsWith('_cs')) q = q.contains(col.replace('_cs', ''), val as any)
+        else if (col.endsWith('_in')) q = q.in(col.replace('_in', ''), val as any)
+        else q = q.eq(col, val as any)
+    }
+
+    const { data, error } = await q
+    if (error) throw error
+    return (data || []) as T[]
+}
+
 /** Insert rows */
 export async function insert<T = Record<string, unknown>>(
     table: string,

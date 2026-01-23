@@ -53,6 +53,16 @@ export function useObservaciones(
         return () => { active = false }
     }, [fetchPage])
 
+    const refetch = useCallback(async () => {
+        setLoading(true)
+        try {
+            const res = await fetchPage(0)
+            setRows(res)
+        } finally {
+            setLoading(false)
+        }
+    }, [fetchPage])
+
     const loadMore = useCallback(async () => {
         if (loadingMore) return true
         setLoadingMore(true)
@@ -68,7 +78,8 @@ export function useObservaciones(
         data,
         loading: loading || metadata.loading,
         loadMore,
-        loadingMore
+        loadingMore,
+        refetch
     }
 }
 

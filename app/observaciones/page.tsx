@@ -9,6 +9,7 @@ import { DataTable, Column } from '@/components/data-table/data-table'
 import { DatePicker } from '@/components/date-picker'
 import { SelectFilter } from '@/components/select-filter'
 import { DownloadDialog } from '@/components/download-dialog'
+import { EditObservationDialog } from '@/components/edit-observation-dialog'
 import { HeaderActions } from '@/components/header-actions'
 import { formatTime, formatDate, formatDuration, formatPct } from '@/lib/utils/format'
 import { useObservaciones, type ObservacionRow } from '@/lib/hooks/use-observaciones'
@@ -29,19 +30,6 @@ const usuarios = (r: ObservacionRow) => {
     return `${names.slice(0, 2).join(', ')} +${names.length - 2}`
 }
 
-const dialogColumns: Column<CamaDetail>[] = [
-    { key: 'cama', label: 'Cama', className: 'text-center' },
-    { key: 'primeraHora', label: 'Inicio', className: 'text-center', render: r => formatTime(r.primeraHora) },
-    { key: 'duracion', label: 'Duración', className: 'text-center', render: r => formatDuration(r.primeraHora, r.ultimaHora) },
-    { key: 'arroz', label: 'Arroz', className: 'text-center' },
-    { key: 'arveja', label: 'Arveja', className: 'text-center' },
-    { key: 'garbanzo', label: 'Garbanzo', className: 'text-center' },
-    { key: 'rayando_color', label: 'Rayando Color', className: 'text-center' },
-    { key: 'sepalos_abiertos', label: 'Sépalos Abiertos', className: 'text-center' },
-    { key: 'pct', label: '%', className: 'text-center', render: r => formatPct(r.pct) },
-    { key: 'usuarios', label: 'Usuarios', className: 'max-w-[150px] truncate text-center', render: r => r.usuarios.join(', ') }
-]
-
 export default function ObservacionesPage() {
     const [date, setDate] = useState<DateRange | undefined>()
     const [fincaId, setFincaId] = useState<number | undefined>()
@@ -50,8 +38,37 @@ export default function ObservacionesPage() {
     const [usuarioId, setUsuarioId] = useState<string | undefined>()
 
     const { fincas, bloques, variedades, users } = useMetadata()
-    const { data, loading, loadMore, loadingMore } = useObservaciones(date, fincaId, bloqueId, variedadId, usuarioId)
+    const { data, loading, loadMore, loadingMore, refetch } = useObservaciones(date, fincaId, bloqueId, variedadId, usuarioId)
     const [selected, setSelected] = useState<ObservacionRow | null>(null)
+
+    const dialogColumns = useMemo<Column<CamaDetail>[]>(() => [
+        { key: 'cama', label: 'Cama', className: 'text-center' },
+        { key: 'primeraHora', label: 'Inicio', className: 'text-center', render: r => formatTime(r.primeraHora) },
+        { key: 'duracion', label: 'Duración', className: 'text-center', render: r => formatDuration(r.primeraHora, r.ultimaHora) },
+        { key: 'arroz', label: 'Arroz', className: 'text-center' },
+        { key: 'arveja', label: 'Arveja', className: 'text-center' },
+        { key: 'garbanzo', label: 'Garbanzo', className: 'text-center' },
+        { key: 'rayando_color', label: 'Rayando Color', className: 'text-center' },
+        { key: 'sepalos_abiertos', label: 'Sépalos Abiertos', className: 'text-center' },
+        { key: 'pct', label: '%', className: 'text-center', render: r => formatPct(r.pct) },
+        { key: 'usuarios', label: 'Usuarios', className: 'max-w-[150px] truncate text-center', render: r => r.usuarios.join(', ') },
+        {
+            key: 'actions',
+            label: 'Editar',
+            className: 'text-center w-[50px]',
+            render: (r) => (
+                <EditObservationDialog
+                    camaId={r.idCama}
+                    primeraHora={r.primeraHora}
+                    ultimaHora={r.ultimaHora}
+                    onSuccess={() => {
+                        refetch()
+                        setSelected(null)
+                    }}
+                />
+            )
+        }
+    ], [refetch])
 
     // Prepare options for filters
     const fincaOptions = useMemo(() =>
