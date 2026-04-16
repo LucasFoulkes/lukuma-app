@@ -15,7 +15,7 @@ type RawGrupo = {
 type RawBloque = { id_bloque: number; nombre: string; id_finca: number }
 type RawFinca = { id_finca: number; nombre: string }
 type RawVariedad = { id_variedad: number; nombre: string }
-type RawUsuario = { id_usuario: string; nombres: string; apellidos: string }
+type RawUsuario = { id_usuario: string; persona: { nombres: string; apellidos: string | null } | null }
 
 export type Bed = {
     cama: string
@@ -98,7 +98,7 @@ function buildMetadata({ grupo_cama, bloque, finca, variedad, usuario }: RawTabl
         finca: fincas.get(b.id_finca) || '',
         id_finca: b.id_finca
     }]))
-    const users = new Map(usuario.map(u => [u.id_usuario, `${u.nombres} ${u.apellidos || ''}`.trim()]))
+    const users = new Map(usuario.map(u => [u.id_usuario, `${u.persona?.nombres ?? ''} ${u.persona?.apellidos ?? ''}`.trim()]))
 
     return { beds, fincas, bloques, variedades, users, bloqueActiveAreas }
 }
@@ -118,7 +118,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             { table: 'bloque', select: 'id_bloque,nombre,id_finca' },
             { table: 'finca', select: 'id_finca,nombre' },
             { table: 'variedad', select: 'id_variedad,nombre' },
-            { table: 'usuario', select: 'id_usuario,nombres,apellidos' }
+            { table: 'usuario', select: 'id_usuario,persona:persona_codigo(nombres,apellidos)' }
         ]).then(raw => setMetadata({ ...buildMetadata(raw as RawTables), loading: false }))
     }, [])
 
